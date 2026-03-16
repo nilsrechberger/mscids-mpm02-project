@@ -1,0 +1,14 @@
+# R
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
+
+# Data
+data/*
+
+# Quarto
+/.quarto/
+
+# Docs
+docs/*.pdf

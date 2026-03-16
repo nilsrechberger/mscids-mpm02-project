@@ -1,0 +1,33 @@
+project:
+  output-dir: docs
+
+format:
+  pdf:
+    documentclass: scrartcl 
+    papersize: a4
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    colorlinks: true
+    geometry:
+      - top=30mm
+      - left=25mm
+      - right=25mm
+      - bottom=30mm
+    include-in-header: 
+      text: |
+        \usepackage{fvextra}
+        \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+    code-block-bg: true
+    code-block-border: "#cccccc"
+
+execute:
+  echo: true
+  warning: false
+  message: false
+  cache: true
+
+knitr:
+  opts_chunk:
+    fig.pos: 'H'
+    out.width: '100%'
