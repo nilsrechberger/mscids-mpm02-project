@@ -1,3 +1,6 @@
+# Enviroment
+.env
+
 # R
 .Rhistory
 .RData
