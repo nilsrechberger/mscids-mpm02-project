@@ -1,12 +1,14 @@
 # mscids-mpm02-project
 
 ```txt
-                    _     _                                      ___ ____                       _           _   
- _ __ ___  ___  ___(_) __| |___       _ __ ___  _ __  _ __ ___  / _ \___ \      _ __  _ __ ___ (_) ___  ___| |_ 
-| '_ ` _ \/ __|/ __| |/ _` / __|_____| '_ ` _ \| '_ \| '_ ` _ \| | | |__) |____| '_ \| '__/ _ \| |/ _ \/ __| __|
-| | | | | \__ \ (__| | (_| \__ \_____| | | | | | |_) | | | | | | |_| / __/_____| |_) | | | (_) | |  __/ (__| |_ 
-|_| |_| |_|___/\___|_|\__,_|___/     |_| |_| |_| .__/|_| |_| |_|\___/_____|    | .__/|_|  \___// |\___|\___|\__|
-                                               |_|                             |_|           |__/               
+                             ___ ___                        _           _   
+                            / _ \__ \                      (_)         | |  
+  _ __ ___  _ __  _ __ ___ | | | | ) |_____ _ __  _ __ ___  _  ___  ___| |_ 
+ | '_ ` _ \| '_ \| '_ ` _ \| | | |/ /______| '_ \| '__/ _ \| |/ _ \/ __| __|
+ | | | | | | |_) | | | | | | |_| / /_      | |_) | | | (_) | |  __/ (__| |_ 
+ |_| |_| |_| .__/|_| |_| |_|\___/____|     | .__/|_|  \___/| |\___|\___|\__|
+           | |                             | |            _/ |              
+           |_|                             |_|           |__/               
 ```
 
 This project was developed as part of the MPM02 (Applied Machine Learning and Predictive Modelling 1) module within the Master of Science in Applied Information and Data Science at [HSLU](https://www.hslu.ch/en/). It encompasses a comprehensive end-to-end data analysis, applying various machine learning and statistical modeling techniques covered in the curriculum.
@@ -20,6 +22,7 @@ The repository is organized to ensure a clean separation between raw data, proce
 ├── data
 │   ├── processed   # Cleaned and transformed datasets for modeling
 │   └── raw         # Original, immutable data source
+├── .env.example    # Example .env file for global configs and variables
 ├── .gitignore
 ├── img             # Static assets and visualizations for Report
 ├── LICENSE
