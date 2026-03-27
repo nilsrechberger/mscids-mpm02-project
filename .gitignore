@@ -8,7 +8,8 @@
 .Rproj.user/
 
 # Data
-data/*
+data/raw/raw_data.csv
+data/processed/processed_data.csv
 
 # Quarto
 /.quarto/
