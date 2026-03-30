@@ -19,8 +19,8 @@ The repository is organized to ensure a clean separation between raw data, proce
 
 ```bash
 .
-├── data
-│   ├── processed   # Cleaned and transformed datasets for modeling
+├── data            # Contains train, validation and test data sets
+│   ├── processed   # Cleaned and transformed data sets
 │   └── raw         # Original, immutable data source
 ├── .env.example    # Example .env file for global configs and variables
 ├── .gitignore
