@@ -1,3 +1,9 @@
+# TODOS:
+# - Generate data preview for GitHub
+# - Remove coded sting versions
+# - String to factors
+# - UID to index
+
 library(tidyverse)
 library(here)
 
@@ -17,10 +23,23 @@ raw_data <- read_csv(raw_data_path)
 
 # Cleaning pipeline
 processed_data <- raw_data %>%
+    # Check for duplicates in AccidentUID (primary key)
+    distinct(
+        AccidentUID,
+        .keep_all = TRUE
+    ) %>%
+    # Remove NA's
+    drop_na() %>%
     # Remove foreign language columns. We keep the english version.
     select(
         -ends_with(
             c("_de", "_fr", "_it")
+        )
+    ) %>%
+    # Remove coded string versions
+    select(
+            -c(
+                "_de", "_fr", "_it")
         )
     ) %>%
     # String to lowercase
