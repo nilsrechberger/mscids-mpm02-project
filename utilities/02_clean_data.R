@@ -1,8 +1,3 @@
-# TODOS:
-# - Generate data preview for GitHub
-# - UID to index
-# - Remove date colums
-
 library(tidyverse)
 library(here)
 
@@ -44,7 +39,6 @@ processed_data <- raw_data %>%
             AccidentType,
             AccidentSeverityCategory,
             RoadType,
-            AccidentWeekDay,
             MunicipalityCode_Aktuell,
             MunicipalityCode_AccidentYear
         )
@@ -79,6 +73,16 @@ processed_data <- raw_data %>%
             hour  = AccidentHour
         )
     ) %>%
+    # Remove old dt colums
+    select(
+        -c(
+            AccidentYear,
+            AccidentMonth,
+            AccidentWeekDay,
+            AccidentWeekDay_en,
+            AccidentHour
+        )
+    ) %>%
     # Sting to factors
     mutate(
         across(
@@ -93,10 +97,9 @@ processed_data <- raw_data %>%
         )
     )
 
-cat("Done cleaning data.\n\n")
-
 # Save data
 saveRDS(processed_data, file = processed_data_path)
+cat("Save processed data\n\n")
 
 # Data preview for GitHub
 write.csv(
@@ -105,3 +108,6 @@ write.csv(
     append = FALSE,
     quote = TRUE,
     sep = ",")
+cat("Save data preview\n\n")
+
+cat("Done cleaning data.\n\n")
