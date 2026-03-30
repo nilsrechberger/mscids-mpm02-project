@@ -4,6 +4,8 @@ library(tidyverse)
 set.seed(123) # Set seed for reproductivity
 
 processed_data <- here("data", "processed", "processed_data.rds")
+if (!file.exists(processed_data)) stop("Processed data not found!")
+
 train_data <- here("data", "train.rds")
 val_data <- here("data", "val.rds")
 test_data <- here("data", "test.rds")
