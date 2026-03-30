@@ -9,7 +9,7 @@
 
 # Data
 data/raw/raw_data.csv
-data/processed/processed_data.csv
+data/processed/processed_data.rds
 
 # Quarto
 /.quarto/

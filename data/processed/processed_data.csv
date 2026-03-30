@@ -1,0 +1,11 @@
+"","AccidentType_en","AccidentSeverityCategory_en","AccidentInvolvingPedestrian","AccidentInvolvingBicycle","AccidentInvolvingMotorcycle","RoadType_en","AccidentLocation_CHLV95_E","AccidentLocation_CHLV95_N","CantonCode","accident_dt_dummy"
+"9FC2212663A3E0F0E0430A865E33E0F0","accident_when_parking","accident_with_property_damage",FALSE,FALSE,FALSE,"other",2683598,1253507,"zh",2011-01-01 10:00:00
+"9FC2F14A65700050E0430A865E330050","accident_when_turning-into_main_road","accident_with_property_damage",FALSE,FALSE,FALSE,"minor_road",2680708,1252618,"zh",2011-01-01 14:00:00
+"9FC2F14A65F30050E0430A865E330050","accident_when_turning_left_or_right","accident_with_light_injuries",FALSE,TRUE,FALSE,"minor_road",2681179,1247560,"zh",2011-01-01 08:00:00
+"9FC2F14A672A0050E0430A865E330050","accident_involving_pedestrian(s)","accident_with_light_injuries",TRUE,FALSE,FALSE,"principal_road",2679811,1246849,"zh",2011-01-01 18:00:00
+"9FC2F14A694B0050E0430A865E330050","accident_with_rear-end_collision","accident_with_light_injuries",FALSE,FALSE,FALSE,"minor_road",2682789,1247449,"zh",2011-01-01 09:00:00
+"9FC2F14A7E780050E0430A865E330050","accident_with_head-on_collision","accident_with_property_damage",FALSE,FALSE,FALSE,"minor_road",2680762,1250227,"zh",2011-01-01 14:00:00
+"9FC309470B85D0B4E0430A865E33D0B4","accident_when_parking","accident_with_property_damage",FALSE,FALSE,FALSE,"minor_road",2678932,1249322,"zh",2011-01-01 17:00:00
+"9FC3094717DAD0B4E0430A865E33D0B4","accident_when_parking","accident_with_property_damage",FALSE,FALSE,FALSE,"minor_road",2684085,1246470,"zh",2011-01-01 23:00:00
+"9FC309471AAED0B4E0430A865E33D0B4","accident_with_rear-end_collision","accident_with_light_injuries",FALSE,FALSE,FALSE,"minor_road",2683557,1252364,"zh",2011-01-01 17:00:00
+"9FC309471E85D0B4E0430A865E33D0B4","accident_when_overtaking_or_changing_lanes","accident_with_property_damage",FALSE,FALSE,FALSE,"minor_road",2682494,1243677,"zh",2011-01-01 07:00:00
