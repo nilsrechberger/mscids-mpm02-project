@@ -8,6 +8,9 @@
 .Rproj.user/
 
 # Data
+data/train.rds
+data/val.rds
+data/test.rds
 data/raw/raw_data.csv
 data/processed/processed_data.rds
 
