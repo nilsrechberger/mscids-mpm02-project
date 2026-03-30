@@ -1,8 +1,8 @@
 # TODOS:
 # - Generate data preview for GitHub
-# - Remove coded sting versions
 # - String to factors
 # - UID to index
+# - Remove date colums
 
 library(tidyverse)
 library(here)
@@ -18,7 +18,7 @@ if (!dir.exists(processed_data_dir)) {
 }
 
 raw_data_path <- here("data", "raw", "raw_data.csv")
-processed_data_path <- here("data", "processed", "processed_data.csv")
+processed_data_path <- here("data", "processed", "processed_data.rds")
 raw_data <- read_csv(raw_data_path)
 
 # Cleaning pipeline
@@ -38,8 +38,20 @@ processed_data <- raw_data %>%
     ) %>%
     # Remove coded string versions
     select(
-            -c(
-                "_de", "_fr", "_it")
+        -c(
+            AccidentType,
+            AccidentSeverityCategory,
+            RoadType,
+            AccidentWeekDay,
+            MunicipalityCode_Aktuell,
+            MunicipalityCode_AccidentYear
+        )
+    ) %>%
+    # Remove additional columns manually
+        select(
+        -c(
+            AccidentMonth_en, # Not used for dt_dummy
+            AccidentHour_text # Not used for dt_dummy
         )
     ) %>%
     # String to lowercase
@@ -64,8 +76,21 @@ processed_data <- raw_data %>%
             day = 1, 
             hour  = AccidentHour
         )
+    ) %>%
+    # Sting to factors
+    mutate(
+        across(
+            c(
+                AccidentType_en,
+                AccidentSeverityCategory_en,
+                RoadType_en,
+                CantonCode,
+
+            ),
+            as.factor
+        )
     )
 
 cat("Done cleaning data.\n\n")
 
-write.csv(processed_data, file = processed_data_path, append = FALSE, quote = TRUE, sep = ",")
+saveRDS(processed_data, file = processed_data_path)
