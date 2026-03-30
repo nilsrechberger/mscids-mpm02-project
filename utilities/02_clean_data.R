@@ -1,6 +1,5 @@
 # TODOS:
 # - Generate data preview for GitHub
-# - String to factors
 # - UID to index
 # - Remove date colums
 
@@ -19,6 +18,7 @@ if (!dir.exists(processed_data_dir)) {
 
 raw_data_path <- here("data", "raw", "raw_data.csv")
 processed_data_path <- here("data", "processed", "processed_data.rds")
+processed_data_preview_path <- here("data", "processed", "processed_data.csv")
 raw_data <- read_csv(raw_data_path)
 
 # Cleaning pipeline
@@ -28,6 +28,8 @@ processed_data <- raw_data %>%
         AccidentUID,
         .keep_all = TRUE
     ) %>%
+    # Set AccidentUID as row names
+    column_to_rownames(., var = "AccidentUID") %>%
     # Remove NA's
     drop_na() %>%
     # Remove foreign language columns. We keep the english version.
@@ -93,4 +95,13 @@ processed_data <- raw_data %>%
 
 cat("Done cleaning data.\n\n")
 
+# Save data
 saveRDS(processed_data, file = processed_data_path)
+
+# Data preview for GitHub
+write.csv(
+    head(processed_data, n = 10),
+    file = processed_data_preview_path,
+    append = FALSE,
+    quote = TRUE,
+    sep = ",")
