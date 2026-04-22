@@ -14,6 +14,9 @@ data/test.rds
 data/raw/raw_data.csv
 data/processed/processed_data.rds
 
+# Img
+img/*.png
+
 # Quarto
 /.quarto/
 
