@@ -19,3 +19,4 @@ data/processed/processed_data.rds
 
 # Docs
 docs/*.pdf
+docs/*.docx
