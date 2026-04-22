@@ -21,5 +21,6 @@ img/*.png
 /.quarto/
 
 # Docs
+Rplots.pdf
 docs/*.pdf
 docs/*.docx
