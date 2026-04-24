@@ -25,21 +25,15 @@ model_weights <- class_weights[train$AccidentSeverityCategory_en]
 # Setting up model training (including tuning and cross-validation)
 train_ctrl <- trainControl(
   method = "cv",
-  number = 2,
+  number = 5,
   verboseIter = TRUE
 )
 
 # Hyperparameter grid
 tune_grid <- expand.grid(
-  size = c(3),
-  decay = c(0.01)
+  size = c(3, 5, 7),
+  decay = c(0.01, 0.1, 0.5)
 )
-
-# # Hyperparameter grid
-# tune_grid <- expand.grid(
-#   size = c(3, 5, 7),
-#   decay = c(0.01, 0.1, 0.5)
-# )
 
 cat("Start model training...\n")
 
