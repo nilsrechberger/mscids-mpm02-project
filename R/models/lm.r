@@ -45,6 +45,7 @@ cat("\nAIC  — lm1:", round(AIC(lm1)), "| lm2:", round(AIC(lm2)), "\n")
 cat("RMSE (val) — lm1:", round(rmse(val$AccidentLocation_CHLV95_N, predict(lm1, val))),
     "| lm2:", round(rmse(val$AccidentLocation_CHLV95_N, predict(lm2, val))), "metres\n")
 
-saveRDS(lm1, here("data", "lm1.rds"))
-saveRDS(lm2, here("data", "lm2.rds"))
+dir.create(here("models"), showWarnings = FALSE)
+saveRDS(lm1, here("models", "lm1.rds"))
+saveRDS(lm2, here("models", "lm2.rds"))
 message("Saved lm1.rds and lm2.rds")

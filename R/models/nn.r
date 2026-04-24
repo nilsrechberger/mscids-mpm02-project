@@ -53,7 +53,6 @@ nn <- train(
 print(nn)
 
 # Save model
-# Erstelle einen Ordner "models", falls er nicht existiert
 dir.create(here("models"), showWarnings = FALSE)
 saveRDS(nn, here("models", "nn.rds"))
 

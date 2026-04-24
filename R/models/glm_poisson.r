@@ -59,13 +59,15 @@ if (disp > 1.5) {
     n_accidents ~ RoadType_en + poly(hour, 2) + month,
     family = quasipoisson, data = accident_counts
   )
-  saveRDS(glm_p2_qp, here("data", "glm_p2_qp.rds"))
+  saveRDS(glm_p2_qp, here("model", "glm_p2_qp.rds"))
 }
 
 print(summary(glm_p2))
 
+dir.create(here("models"), showWarnings = FALSE)
+
 saveRDS(accident_counts, here("data", "accident_counts.rds"))
-saveRDS(glm_p1, here("data", "glm_p1.rds"))
-saveRDS(glm_p2, here("data", "glm_p2.rds"))
-saveRDS(glm_p3, here("data", "glm_p3.rds"))
+saveRDS(glm_p1, here("models", "glm_p1.rds"))
+saveRDS(glm_p2, here("models", "glm_p2.rds"))
+saveRDS(glm_p3, here("models", "glm_p3.rds"))
 message("Models saved.")
