@@ -3,68 +3,64 @@ library(nnet)
 library(here)
 library(caret)
 
-# Set seed for reproducibility
+# Ensuring reproducibility
 set.seed(42)
 
-# Load data
+# Load training data
 train <- readRDS(here("data", "train.rds"))
-val   <- readRDS(here("data", "val.rds"))
-test  <- readRDS(here("data", "test.rds"))
 
-clean_data <- function(df) {
-  # Cleans data specific for the NN
+# Clean data for NN
+clean_columns <- function(df) {
   df %>%
-    select(-any_of(c("accident_dt_dummy", "CantonCode")), -1) %>% 
-    mutate(
-      AccidentLocation_CHLV95_E = as.numeric(scale(AccidentLocation_CHLV95_E)),
-      AccidentLocation_CHLV95_N = as.numeric(scale(AccidentLocation_CHLV95_N))
-    )
+    select(-any_of(c("accident_dt_dummy", "CantonCode")), -1)
 }
+train <- clean_columns(train)
 
-# Apply function on all sets
-train <- clean_data(train)
-val   <- clean_data(val)
-test  <- clean_data(test)
-
-# Calculate class weights to avoid imbalance 
+# Calculate class weights (Imbalance Handling)
 class_counts <- table(train$AccidentSeverityCategory_en)
 class_weights <- 1 / class_counts
-class_weights <- class_weights / sum(class_weights) * nrow(train)
-
-# Apply class weights
+class_weights <- (class_weights / sum(class_weights)) * nrow(train)
 model_weights <- class_weights[train$AccidentSeverityCategory_en]
 
-# Train model
-nn_model <- nnet(
+# Setting up model training (including tuning and cross-validation)
+train_ctrl <- trainControl(
+  method = "cv",
+  number = 2,
+  verboseIter = TRUE
+)
+
+# Hyperparameter grid
+tune_grid <- expand.grid(
+  size = c(3),
+  decay = c(0.01)
+)
+
+# # Hyperparameter grid
+# tune_grid <- expand.grid(
+#   size = c(3, 5, 7),
+#   decay = c(0.01, 0.1, 0.5)
+# )
+
+cat("Start model training...\n")
+
+nn <- train(
   AccidentSeverityCategory_en ~ .,
   data = train,
-  size = 5,
-  decay = 0.1,
+  method = "nnet",
+  preProcess = c("center", "scale"),
+  tuneGrid = tune_grid,
+  trControl = train_ctrl,
+  weights = model_weights,
   maxit = 500,
   MaxNWts = 5000,
-  weights = model_weights, # Set model weights
-  trace = TRUE
+  trace = FALSE
 )
 
-print(nn_model)
+print(nn)
 
-# Model validation
-predictions_val <- predict(
-  nn_model,
-  newdata = val,
-  type = "class"
-)
+# Save model
+# Erstelle einen Ordner "models", falls er nicht existiert
+dir.create(here("models"), showWarnings = FALSE)
+saveRDS(nn, here("models", "nn.rds"))
 
-# Re-factor if some classes are missing in the prediction
-predictions_val <- factor(
-  predictions_val,
-  levels = levels(val$AccidentSeverityCategory_en)
-)
-
-# Conf. Matrix for evaluation
-conf_matrix <- confusionMatrix(
-  data = predictions_val, 
-  reference = val$AccidentSeverityCategory_en
-)
-
-print(conf_matrix)
+cat("Model successfully saved to models/nn.rds!\n")
