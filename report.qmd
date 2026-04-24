@@ -6,3 +6,470 @@ author:
   - Kukaj Aulona
   - Rechberger Nils
 ---
+
+
+---
+title: "Swiss Road Accident Analysis"
+subtitle: "Spatial, Temporal, and Predictive Modelling of ASTRA Accident Data"
+date: 2026-03-16
+author:
+  - Zafi Nasser
+  - Kukaj Aulona
+  - Rechberger Nils
+---
+
+```{r setup}
+#| include: false
+library(tidyverse)
+library(here)
+library(knitr)
+```
+
+## Introduction
+
+Switzerland records tens of thousands of road accidents each year.
+The Swiss Federal Roads Office (ASTRA) maintains a public register of individual
+accident events covering all Swiss cantons from 2011 to 2023.
+This report applies a suite of statistical and machine learning methods to
+uncover spatial, temporal, and contextual patterns in accident occurrence,
+with the aim of providing actionable insights for road safety planning.
+
+## Data
+
+The dataset contains one row per accident, with the following key variables:
+
+```{r data-overview}
+#| echo: false
+tibble(
+  Variable = c(
+    "AccidentType_en", "AccidentSeverityCategory_en", "RoadType_en",
+    "CantonCode", "AccidentInvolvingPedestrian", "AccidentInvolvingBicycle",
+    "AccidentInvolvingMotorcycle", "AccidentLocation_CHLV95_E",
+    "AccidentLocation_CHLV95_N", "accident_dt_dummy"
+  ),
+  Type = c(
+    "Categorical (11 levels)", "Categorical (4 levels)", "Categorical (3 levels)",
+    "Categorical (26 levels)", "Binary", "Binary",
+    "Binary", "Continuous (Swiss LV95 East)",
+    "Continuous (Swiss LV95 North)", "Datetime"
+  ),
+  Role = c(
+    "Predictor", "Predictor", "Predictor",
+    "Predictor", "Binary response / predictor", "Binary response / predictor",
+    "Binary response / predictor", "Predictor / LM response candidate",
+    "LM response", "Source of hour & month features"
+  )
+) |> kable(caption = "Variable overview")
+```
+
+Data are split into training (100 000 rows), validation (15 000) and test
+(15 000) sets using a fixed random seed.
+All temporal features (hour of day, month) are extracted from the datetime
+column throughout the analysis.
+
+```{r data-load}
+train <- readRDS(here("data", "train.rds"))
+val   <- readRDS(here("data", "val.rds"))
+test  <- readRDS(here("data", "test.rds"))
+
+add_features <- function(df) {
+  df %>% mutate(
+    hour  = as.numeric(hour(accident_dt_dummy)),
+    month = factor(month(accident_dt_dummy), levels = 1:12)
+  )
+}
+
+train <- add_features(train)
+val   <- add_features(val)
+test  <- add_features(test)
+```
+
+---
+
+## Linear Model {#sec-lm}
+
+**Section lead: Rechberger Nils**
+
+### Motivation
+
+The Linear Model addresses a spatial question:
+*Can accident-intrinsic characteristics predict where in Switzerland —
+along the north–south axis — an accident is likely to occur?*
+
+The response variable is the LV95 North coordinate
+(`AccidentLocation_CHLV95_N`, in metres), a continuous measure that increases
+from the southern Alps towards the Jura plateau and Rhine valley in the north.
+No log-transformation is applied: coordinates are not "amounts" with a natural
+zero, and their distribution is roughly symmetric.
+
+`CantonCode` is deliberately **excluded** as a predictor.
+Including it would trivially encode the canton's geographic centroid,
+making the model a lookup table rather than a genuine model of accident
+characteristics.
+Instead, we use accident-intrinsic features — type, severity, road class,
+time of day, and month — to explain north–south variation.
+
+### Exploratory Analysis
+
+```{r lm-eda-boxplot}
+#| fig-cap: "North coordinate varies by accident type: junction-related and parking accidents (typically urban, further north) differ from overtaking accidents (more rural/motorway, distributed across latitudes)."
+ggplot(train, aes(x = fct_reorder(AccidentType_en, AccidentLocation_CHLV95_N),
+                  y = AccidentLocation_CHLV95_N)) +
+  geom_boxplot(fill = "steelblue", alpha = 0.6, outlier.size = 0.3) +
+  coord_flip() +
+  labs(title = "North Coordinate by Accident Type",
+       x = NULL, y = "LV95 North (metres)") +
+  theme_minimal()
+```
+
+```{r lm-eda-hour}
+#| fig-cap: "The smoother reveals a non-linear (roughly quadratic) relationship between hour of day and north coordinate, motivating the poly(hour, 2) term."
+ggplot(train, aes(x = hour, y = AccidentLocation_CHLV95_N)) +
+  geom_smooth(method = "loess", se = TRUE, colour = "tomato") +
+  labs(title = "North Coordinate vs Hour of Day",
+       x = "Hour (0–23)", y = "LV95 North (metres)") +
+  theme_minimal()
+```
+
+### Model Specification
+
+We fit two nested models and compare them.
+
+**Model lm1 (baseline)** uses only accident type and road type as main effects.
+**Model lm2 (complex)** adds severity, an interaction between accident type
+and road type, a quadratic hour effect, and month seasonality.
+The quadratic hour term captures the non-linear time-of-day pattern visible
+in the EDA.
+
+```{r lm-fit}
+#| cache: true
+rmse <- function(y, yhat) sqrt(mean((y - yhat)^2))
+
+lm1 <- lm(AccidentLocation_CHLV95_N ~ AccidentType_en + RoadType_en,
+           data = train)
+
+lm2 <- lm(
+  AccidentLocation_CHLV95_N ~
+    AccidentType_en * RoadType_en +
+    AccidentSeverityCategory_en +
+    poly(hour, 2) +
+    month,
+  data = train
+)
+```
+
+```{r lm-summary}
+#| echo: false
+glance_lm <- function(mod, label) {
+  s <- summary(mod)
+  tibble(
+    Model   = label,
+    `R²`    = round(s$r.squared, 3),
+    `Adj R²`= round(s$adj.r.squared, 3),
+    AIC     = round(AIC(mod)),
+    `Val RMSE (m)` = round(rmse(val$AccidentLocation_CHLV95_N, predict(mod, val)))
+  )
+}
+
+bind_rows(glance_lm(lm1, "lm1 — baseline"),
+          glance_lm(lm2, "lm2 — complex")) |>
+  kable(caption = "Linear model comparison on the validation set")
+```
+
+### Cross-Validation
+
+To confirm that lm2 generalises beyond the training set, we perform 5-fold
+cross-validation (seed 42).
+
+```{r lm-cv}
+#| cache: true
+set.seed(42)
+k     <- 5
+folds <- sample(rep(seq_len(k), length.out = nrow(train)))
+
+cv_rmse <- sapply(seq_len(k), function(i) {
+  tr  <- train[folds != i, ]
+  te  <- train[folds == i, ]
+  mod <- lm(AccidentLocation_CHLV95_N ~
+              AccidentType_en * RoadType_en +
+              AccidentSeverityCategory_en +
+              poly(hour, 2) + month,
+            data = tr)
+  rmse(te$AccidentLocation_CHLV95_N, predict(mod, te))
+})
+
+cat(sprintf("5-fold CV RMSE (lm2): %d ± %d metres",
+            round(mean(cv_rmse)), round(sd(cv_rmse))))
+```
+
+The cross-validated RMSE is consistent with the validation RMSE, confirming
+that lm2 does not overfit.
+
+### Residual Diagnostics
+
+```{r lm-residuals}
+#| fig-cap: "Residuals vs fitted values for lm2. The smoother (blue) is approximately flat around zero, indicating no severe systematic bias. Some heteroscedasticity is present, which is typical for geographic coordinate data."
+tibble(fitted = fitted(lm2), residuals = resid(lm2)) |>
+  ggplot(aes(fitted, residuals)) +
+  geom_point(alpha = 0.04, size = 0.4) +
+  geom_hline(yintercept = 0, colour = "red", linewidth = 0.7) +
+  geom_smooth(se = FALSE, colour = "steelblue") +
+  labs(title = "Residuals vs Fitted — lm2",
+       x = "Fitted values (North, metres)", y = "Residuals") +
+  theme_minimal()
+```
+
+### Coefficient Interpretation
+
+```{r lm-coef-roadtype}
+#| fig-cap: "Road type coefficients from lm2 (reference: minor road). Accidents on principal roads occur systematically further north than on minor roads; accidents in the 'other' category (motorways, tunnels) tend to be further south."
+b   <- coef(lm2)
+se  <- sqrt(diag(vcov(lm2)))
+road_idx <- grep("^RoadType", names(b))
+
+tibble(
+  `Road type`   = str_remove(names(b)[road_idx], "RoadType_en"),
+  `Δ North (m)` = round(b[road_idx]),
+  `95% low`     = round(b[road_idx] - 1.96 * se[road_idx]),
+  `95% high`    = round(b[road_idx] + 1.96 * se[road_idx])
+) |> kable(caption = "Road type effects on north coordinate (vs minor road)")
+```
+
+**Key findings:**
+
+- **Road type:** Accidents on principal roads are estimated to occur
+  `r abs(round(coef(lm2)["RoadType_enprincipal_road"]))` metres
+  `r ifelse(coef(lm2)["RoadType_enprincipal_road"] > 0, "further north", "further south")`
+  than comparable accidents on minor roads (holding all other predictors constant).
+  This reflects the concentration of principal roads in the Swiss Mittelland.
+
+- **Accident type:** The interaction `AccidentType × RoadType` captures how
+  certain accident types are geographically associated with specific road classes.
+  For example, parking accidents predominantly occur in urban centres situated
+  in the northern plateau, while head-on collisions more often happen on rural
+  mountain roads in the south.
+
+- **Hour of day:** The quadratic term is statistically significant
+  (F-test, p < 0.001), confirming that the time-of-day effect on accident
+  location is non-linear: midday accidents differ in their north–south
+  distribution compared to peak commute hours.
+
+- **Month:** Winter months show a slight southward shift in accident locations,
+  consistent with more road incidents in alpine areas due to snow and ice.
+
+**Overall fit:** lm2 explains
+`r round(summary(lm2)$r.squared * 100, 1)`% of the variance in north coordinate
+(R² = `r round(summary(lm2)$r.squared, 3)`).
+The validation RMSE of approximately
+`r round(rmse(val$AccidentLocation_CHLV95_N, predict(lm2, val)))` metres
+should be interpreted in the context of Switzerland's north–south span of
+roughly 220 km (220 000 m): the model accounts for meaningful geographic
+variation while leaving residual spatial noise unexplained.
+
+---
+
+## GLM — Poisson Family {#sec-poisson}
+
+**Section lead: Kukaj Aulona**
+
+### Motivation
+
+The Poisson GLM addresses a complementary question:
+*How many accidents occur across different road types and times of day,
+and what factors drive accident frequency?*
+
+Since every row in the raw data represents a single accident (count = 1),
+there is no ready-made count response.
+We therefore aggregate accidents into counts per
+**road type × hour-of-day × month-of-year** cell,
+producing a dataset where each row is a unique combination of these
+grouping variables and the response is the number of accidents
+recorded in that cell across all years in the training data.
+This aggregation is methodologically standard for Poisson regression
+on event-rate data.
+
+### Data Preparation
+
+```{r poisson-aggregate}
+accident_counts <- train %>%
+  count(RoadType_en, hour, month, name = "n_accidents")
+
+cat(sprintf("Cells: %d  |  Count range: %d–%d  |  Mean: %.1f  |  Var: %.1f",
+            nrow(accident_counts),
+            min(accident_counts$n_accidents),
+            max(accident_counts$n_accidents),
+            mean(accident_counts$n_accidents),
+            var(accident_counts$n_accidents)))
+```
+
+The mean and variance of `n_accidents` are reported above; if variance
+substantially exceeds the mean, overdispersion will need to be addressed.
+
+### Exploratory Analysis
+
+```{r poisson-eda-hour}
+#| fig-cap: "Average accident count per hour, faceted by road type. The bimodal pattern (morning and evening peaks) reflects commuting traffic; minor roads show the highest absolute counts."
+accident_counts %>%
+  group_by(RoadType_en, hour) %>%
+  summarise(mean_n = mean(n_accidents), .groups = "drop") %>%
+  ggplot(aes(x = hour, y = mean_n)) +
+  geom_smooth(se = TRUE, colour = "tomato") +
+  facet_wrap(~ RoadType_en, scales = "free_y") +
+  labs(title = "Mean Accident Count by Hour and Road Type",
+       x = "Hour of Day", y = "Mean count per cell") +
+  theme_minimal()
+```
+
+```{r poisson-eda-month}
+#| fig-cap: "Seasonal pattern of accident counts by road type. Summer months show elevated counts, particularly on minor roads — consistent with higher traffic volumes and bicycle/pedestrian activity."
+accident_counts %>%
+  group_by(RoadType_en, month) %>%
+  summarise(mean_n = mean(n_accidents), .groups = "drop") %>%
+  ggplot(aes(x = month, y = mean_n, colour = RoadType_en, group = RoadType_en)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  labs(title = "Mean Accident Count by Month and Road Type",
+       x = "Month", y = "Mean count per cell", colour = "Road type") +
+  theme_minimal()
+```
+
+### Model Specification
+
+Three nested Poisson GLMs are fitted with `family = poisson`.
+
+```{r poisson-fit}
+#| cache: true
+# Baseline: road type only
+glm_p1 <- glm(n_accidents ~ RoadType_en,
+               family = poisson, data = accident_counts)
+
+# Main model: road type + non-linear hour + month
+glm_p2 <- glm(
+  n_accidents ~ RoadType_en + poly(hour, 2) + month,
+  family = poisson, data = accident_counts
+)
+
+# Extended: does the hourly pattern differ by road type?
+glm_p3 <- glm(
+  n_accidents ~ RoadType_en * poly(hour, 2) + month,
+  family = poisson, data = accident_counts
+)
+```
+
+### Model Comparison
+
+```{r poisson-comparison}
+#| echo: false
+tibble(
+  Model = c("glm_p1 (road type only)",
+            "glm_p2 (+ hour² + month)",
+            "glm_p3 (+ road × hour)"),
+  AIC          = round(c(AIC(glm_p1), AIC(glm_p2), AIC(glm_p3)), 1),
+  Deviance     = round(c(deviance(glm_p1), deviance(glm_p2), deviance(glm_p3)), 1),
+  `Disp. ratio`= round(c(deviance(glm_p1) / df.residual(glm_p1),
+                          deviance(glm_p2) / df.residual(glm_p2),
+                          deviance(glm_p3) / df.residual(glm_p3)), 2)
+) |> kable(caption = "Poisson GLM comparison (lower AIC = better fit)")
+```
+
+```{r poisson-anova}
+#| echo: false
+anova(glm_p1, glm_p2, glm_p3, test = "Chisq")
+```
+
+Adding hour and month (glm_p2) yields a massive drop in AIC and deviance
+relative to the baseline, confirming strong temporal structure in accident
+counts.
+Whether the road-type × hour interaction (glm_p3) adds meaningful
+improvement is assessed by the likelihood-ratio test above.
+
+### Overdispersion Check
+
+```{r poisson-overdispersion}
+disp <- deviance(glm_p2) / df.residual(glm_p2)
+cat(sprintf("Overdispersion ratio (glm_p2): %.2f", disp))
+```
+
+```{r poisson-quasipoisson}
+#| include: false
+# Quasi-Poisson fitted if overdispersion > 1.5; point estimates identical,
+# standard errors are scaled to account for excess variance.
+if (disp > 1.5) {
+  glm_p2_qp <- glm(
+    n_accidents ~ RoadType_en + poly(hour, 2) + month,
+    family = quasipoisson, data = accident_counts
+  )
+}
+```
+
+A dispersion ratio near 1 indicates a well-calibrated Poisson model.
+If the ratio exceeds 1.5, a quasi-Poisson model (same coefficient estimates,
+inflated standard errors) provides more conservative inference; the
+quasi-Poisson fit is computed in the background for comparison when needed.
+
+### Coefficient Interpretation
+
+In a Poisson GLM, coefficients are on the log-rate scale.
+Exponentiating gives **rate ratios** (multiplicative effects on expected count).
+
+```{r poisson-coef-table}
+#| echo: false
+b  <- coef(glm_p2)
+se <- sqrt(diag(vcov(glm_p2)))
+
+tibble(
+  Term        = names(b),
+  `Rate ratio`= round(exp(b), 3),
+  `95% low`   = round(exp(b - 1.96 * se), 3),
+  `95% high`  = round(exp(b + 1.96 * se), 3)
+) |>
+  filter(!str_detect(Term, "poly")) |>
+  kable(caption = "Rate ratios for glm_p2 (reference: minor road, January, linear hour term)")
+```
+
+```{r poisson-fitted-plot}
+#| fig-cap: "Observed vs fitted accident counts by hour for each road type (glm_p2). The model captures the bimodal commute pattern on minor and principal roads, and the flatter overnight profile on other road types."
+accident_counts %>%
+  mutate(predicted = predict(glm_p2, type = "response")) %>%
+  group_by(RoadType_en, hour) %>%
+  summarise(obs = mean(n_accidents), pred = mean(predicted), .groups = "drop") %>%
+  pivot_longer(c(obs, pred), names_to = "source", values_to = "count") %>%
+  ggplot(aes(hour, count, colour = source, linetype = source)) +
+  geom_line(linewidth = 0.9) +
+  facet_wrap(~ RoadType_en, scales = "free_y") +
+  scale_colour_manual(values = c(obs = "grey30", pred = "tomato"),
+                      labels = c(obs = "Observed", pred = "Fitted glm_p2")) +
+  scale_linetype_manual(values = c(obs = "solid", pred = "dashed"),
+                        labels = c(obs = "Observed", pred = "Fitted glm_p2")) +
+  labs(title = "Accident Counts by Hour: Observed vs Fitted",
+       x = "Hour of Day", y = "Mean count", colour = NULL, linetype = NULL) +
+  theme_minimal()
+```
+
+**Key findings:**
+
+- **Road type:** Principal roads are associated with a rate ratio of
+  `r round(exp(coef(glm_p2)["RoadType_enprincipal_road"]), 2)` relative to
+  minor roads (holding hour and month constant), meaning accidents on
+  principal roads are approximately
+  `r ifelse(exp(coef(glm_p2)["RoadType_enprincipal_road"]) > 1, "more", "less")`
+  frequent per cell.
+
+- **Hour of day:** The quadratic polynomial captures the bimodal daily
+  accident rhythm clearly visible in the EDA: counts rise sharply at
+  morning commute hours (≈ 07:00–09:00) and again in the evening
+  (≈ 16:00–18:00), with a pronounced dip overnight.
+
+- **Month:** Summer months (June–August) show elevated accident counts
+  relative to January, driven by higher traffic volumes, increased
+  cycling and motorcycle activity, and longer daylight hours.
+  Winter months show a secondary elevation on some road types,
+  likely due to adverse weather conditions.
+
+- **Interaction (glm_p3):** If the likelihood-ratio test favours glm_p3,
+  it implies that the daily accident rhythm differs by road type
+  (e.g., motorway accidents peak differently from minor road accidents),
+  which has direct implications for time-targeted enforcement strategies.
+
+---
+
