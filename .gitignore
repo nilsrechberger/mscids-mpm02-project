@@ -1,6 +1,9 @@
 # Enviroment
 .env
 
+# Directories
+models/*
+
 # R
 .Rhistory
 .RData
