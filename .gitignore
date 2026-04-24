@@ -2,7 +2,7 @@
 .env
 
 # Directories
-models/*
+models/*.rds
 
 # R
 .Rhistory
