@@ -23,4 +23,10 @@ img/*.png
 # Docs
 Rplots.pdf
 docs/*.pdf
+# !docs/report.pdf # As soon as the report is finished
 docs/*.docx
+docs/report_files/*
+
+# Quarto
+report_files/*
+report_cache/*
