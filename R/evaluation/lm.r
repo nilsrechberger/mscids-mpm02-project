@@ -16,8 +16,8 @@ val <- readRDS(here("data", "val.rds")) %>%
   mutate(hour  = as.numeric(hour(accident_dt_dummy)),
          month = factor(month(accident_dt_dummy), levels = 1:12))
 
-lm1 <- readRDS(here("data", "lm1.rds"))
-lm2 <- readRDS(here("data", "lm2.rds"))
+lm1 <- readRDS(here("models", "lm1.rds"))
+lm2 <- readRDS(here("models", "lm2.rds"))
 
 rmse <- function(y, yhat) sqrt(mean((y - yhat)^2))
 

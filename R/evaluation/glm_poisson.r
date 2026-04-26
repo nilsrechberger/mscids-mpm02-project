@@ -7,9 +7,9 @@ library(tidyverse)
 library(here)
 
 accident_counts <- readRDS(here("data", "accident_counts.rds"))
-glm_p1 <- readRDS(here("data", "glm_p1.rds"))
-glm_p2 <- readRDS(here("data", "glm_p2.rds"))
-glm_p3 <- readRDS(here("data", "glm_p3.rds"))
+glm_p1 <- readRDS(here("models", "glm_p1.rds"))
+glm_p2 <- readRDS(here("models", "glm_p2.rds"))
+glm_p3 <- readRDS(here("models", "glm_p3.rds"))
 
 # --- AIC / dispersion table ---
 cat("=== Model Comparison ===\n")
