@@ -35,6 +35,8 @@ tryCatch(
 
 # Data preview for GitHub
 preview_data <- read.csv(dest_file, nrows = 10)
+data_preview <- file.path(raw_dir, "preview.csv")
+
 write.csv(
     preview_data,
     file = data_preview,
