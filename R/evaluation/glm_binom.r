@@ -1,27 +1,34 @@
-# 5-fold Cross Validation
+library(tidyverse)
+library(here)
+library(lubridate)
+library(pROC)
 
-set.seed(42)
+test <- readRDS(here("data", "test.rds"))
 
-k <- 5
-n <- nrow(train)
-folds <- sample(rep(seq_len(k), length.out = n))
+prepare_glm_data <- function(df) {
+  df %>%
+    mutate(
+      AccidentInvolvingPedestrian = as.integer(AccidentInvolvingPedestrian),
+      hour_num = as.numeric(lubridate::hour(accident_dt_dummy)),
+      month_fac = factor(lubridate::month(accident_dt_dummy), levels = 1:12),
+      RoadType_simplified = case_when(
+        RoadType_en %in% c("expressway", "motorway") ~ "high_speed",
+        TRUE ~ "other"
+      ),
+      AccidentInvolvingBicycle = as.integer(AccidentInvolvingBicycle),
+      AccidentInvolvingMotorcycle = as.integer(AccidentInvolvingMotorcycle)
+    )
+}
 
-cv_auc <- sapply(seq_len(k), function(i) {
-  tr <- train[folds != i, ]
-  te <- train[folds == i, ]
-  
-  model <- glm(
-    AccidentInvolvingPedestrian ~
-      AccidentSeverityCategory_en +
-      hour_num +
-      month_fac,
-    data = tr,
-    family = binomial
-  )
-  
-  pred <- predict(model, te, type = "response")
-  pROC::roc(te$AccidentInvolvingPedestrian, pred)$auc
-})
+test_glm <- prepare_glm_data(test)
 
-cat("5-fold CV AUC:", round(mean(cv_auc), 3),
-    "+/-", round(sd(cv_auc), 3), "\n")
+glm_bin <- readRDS(here("models", "glm_bin.rds"))
+
+pred_test <- predict(glm_bin, newdata = test_glm, type = "response")
+
+auc_test <- roc(
+  response = test_glm$AccidentInvolvingPedestrian,
+  predictor = pred_test
+)$auc
+
+cat("GLM Binomial Test AUC:", as.numeric(auc_test), "\n")
