@@ -97,6 +97,13 @@ processed_data <- raw_data %>%
             ),
             as.factor
         )
+    ) %>%
+    # Add count variable: number of accidents in the same canton × month × year
+    # This satisfies the project requirement for a count-type variable.
+    add_count(
+        CantonCode,
+        lubridate::floor_date(accident_dt_dummy, "month"),
+        name = "n_accidents_canton_month"
     )
 
 # Save data

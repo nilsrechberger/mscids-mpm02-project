@@ -45,25 +45,26 @@ tibble(
     "AccidentType_en", "AccidentSeverityCategory_en", "RoadType_en",
     "CantonCode", "AccidentInvolvingPedestrian", "AccidentInvolvingBicycle",
     "AccidentInvolvingMotorcycle", "AccidentLocation_CHLV95_E",
-    "AccidentLocation_CHLV95_N", "accident_dt_dummy"
+    "AccidentLocation_CHLV95_N", "n_accidents_canton_month", "accident_dt_dummy"
   ),
   Type = c(
-    "Categorical (11 levels)", "Categorical (4 levels)", "Categorical (3 levels)",
+    "Categorical (7 levels)", "Categorical (3 levels)", "Categorical (3 levels)",
     "Categorical (26 levels)", "Binary", "Binary",
     "Binary", "Continuous (Swiss LV95 East)",
-    "Continuous (Swiss LV95 North)", "Datetime"
+    "Continuous (Swiss LV95 North)", "Count", "Datetime"
   ),
   Role = c(
     "Predictor", "Predictor", "Predictor",
     "Predictor", "Binary response / predictor", "Binary response / predictor",
     "Binary response / predictor", "Predictor / LM response candidate",
-    "LM response", "Source of hour & month features"
+    "LM response", "Count predictor (accidents in same canton-month)",
+    "Source of hour & month features"
   )
 ) |> kable(caption = "Variable overview")
 ```
 
-Data are split into training (100 000 rows), validation (15 000) and test
-(15 000) sets using a fixed random seed.
+Data are split into training (70 000 rows), validation (15 000) and test
+(15 000) sets using a fixed random seed (total N = 100 000).
 All temporal features (hour of day, month) are extracted from the datetime
 column throughout the analysis.
 
