@@ -16,9 +16,8 @@ cat("Start data splitting...\n\n")
 
 shuffled_df <- df[sample(nrow(df)), ]
 
-# Project requirement: Limit Data set sizes
-# DO NOT CHANGE THIS VALUES!
-n_train <- 100000
+# Project requirement: Limit Data set sizes to N <= 100 000 total.
+n_train <- 70000
 n_val   <- 15000
 n_test  <- 15000
 
