@@ -2,7 +2,7 @@ library(tidyverse)
 library(caret)
 library(here)
 
-# 1. Daten und Modell laden
+# Load data and model
 val   <- readRDS(here("data", "val.rds"))
 test  <- readRDS(here("data", "test.rds"))
 nn <- readRDS(here("models", "nn.rds"))
@@ -10,14 +10,18 @@ nn <- readRDS(here("models", "nn.rds"))
 # Clean data for NN
 clean_columns <- function(df) {
   df %>%
-    select(-any_of(c("accident_dt_dummy", "CantonCode")), -1)
+    select(-any_of(c("accident_dt_dummy", "CantonCode")))
 }
 
 val  <- clean_columns(val)
 test <- clean_columns(test)
 
+# Best hyperparameters from cross-validation
+message("Best tuning parameters:")
+print(nn$bestTune)
+
 # Evaluation on the validation set (val.rds)
-cat("\n--- Evaluation: Validation Set ---\n")
+message("\n--- Evaluation: Validation Set ---")
 
 predictions_val <- predict(
     nn,
@@ -31,7 +35,7 @@ conf_matrix_val <- confusionMatrix(
 print(conf_matrix_val)
 
 # Evaluation on the final test set (test.rds)
-cat("\n--- Evaluation: Test Set ---\n")
+message("\n--- Evaluation: Test Set ---")
 
 predictions_test <- predict(
     nn,

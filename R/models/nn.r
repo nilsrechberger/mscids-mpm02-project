@@ -12,7 +12,7 @@ train <- readRDS(here("data", "train.rds"))
 # Clean data for NN
 clean_columns <- function(df) {
   df %>%
-    select(-any_of(c("accident_dt_dummy", "CantonCode")), -1)
+    select(-any_of(c("accident_dt_dummy", "CantonCode")))
 }
 train <- clean_columns(train)
 
@@ -26,7 +26,9 @@ model_weights <- class_weights[train$AccidentSeverityCategory_en]
 train_ctrl <- trainControl(
   method = "cv",
   number = 5,
-  verboseIter = TRUE
+  verboseIter = TRUE,
+  classProbs = TRUE,
+  summaryFunction = multiClassSummary
 )
 
 # Hyperparameter grid
@@ -35,7 +37,12 @@ tune_grid <- expand.grid(
   decay = c(0.01, 0.1, 0.5)
 )
 
-cat("Start model training...\n")
+n_inputs <- ncol(train) - 1
+n_outputs <- length(levels(factor(train$AccidentSeverityCategory_en)))
+max_hidden <- max(tune_grid$size)
+max_nwts <- (n_inputs + 1) * max_hidden + (max_hidden + 1) * n_outputs
+
+message("Start model training...")
 
 nn <- train(
   AccidentSeverityCategory_en ~ .,
@@ -46,7 +53,7 @@ nn <- train(
   trControl = train_ctrl,
   weights = model_weights,
   maxit = 500,
-  MaxNWts = 5000,
+  MaxNWts = max_nwts,
   trace = FALSE
 )
 
@@ -56,4 +63,4 @@ print(nn)
 dir.create(here("models"), showWarnings = FALSE)
 saveRDS(nn, here("models", "nn.rds"))
 
-cat("Model successfully saved to models/nn.rds!\n")
+message("Model successfully saved to models/nn.rds!")
