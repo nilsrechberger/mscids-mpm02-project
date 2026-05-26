@@ -7,7 +7,6 @@ author:
   - Rechberger Nils
 ---
 
-
 ---
 title: "Swiss Road Accident Analysis"
 subtitle: "Spatial, Temporal, and Predictive Modelling of ASTRA Accident Data"
@@ -27,12 +26,21 @@ library(knitr)
 
 ## Introduction
 
-Switzerland records tens of thousands of road accidents each year.
-The Swiss Federal Roads Office (ASTRA) maintains a public register of individual
-accident events covering all Swiss cantons from 2011 to 2023.
-This report applies a suite of statistical and machine learning methods to
-uncover spatial, temporal, and contextual patterns in accident occurrence,
-with the aim of providing actionable insights for road safety planning.
+Switzerland records tens of thousands of road accidents each year. The Swiss Federal Roads Office (ASTRA) maintains a public register of individual accident events covering all Swiss cantons from 2011 to 2023. This report applies a suite of statistical and machine learning methods to uncover spatial, temporal, and contextual patterns in accident occurrence, with the aim of providing actionable insights for road safety planning.
+
+## Persona & Use Case
+
+**Persona: Road Safety Analyst at ASTRA**
+
+Sandra Meier, 38, works as a data analyst in the Road Safety division of the Swiss Federal Roads Office (ASTRA). She has a background in applied statistics and collaborates with cantonal traffic authorities, urban planners, and enforcement agencies. Her mandate is to translate raw accident data into evidence-based recommendations, identifying where, when, and under what conditions accidents cluster, so that limited prevention budgets can be directed where they matter most.
+
+### Use case
+
+Sandra needs to present a quarterly briefing to cantonal road safety coordinators. She wants to move beyond simple accident counts and answer three concrete questions:
+
+1. **Where** do certain accident types concentrate geographically — and can accident characteristics alone predict the north–south location without relying on the canton label?
+2. **When** are accident rates elevated — and how do road type and time of day jointly shape expected accident frequency?
+3. **Who** is at risk — can road and contextual features flag accidents likely to involve vulnerable road users such as pedestrians, cyclists, or motorcyclists?
 
 ## Data
 
