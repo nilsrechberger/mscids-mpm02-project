@@ -1,14 +1,16 @@
 # mscids-mpm02-project
 
 ```txt
-                             ___ ___                        _           _   
-                            / _ \__ \                      (_)         | |  
-  _ __ ___  _ __  _ __ ___ | | | | ) |_____ _ __  _ __ ___  _  ___  ___| |_ 
- | '_ ` _ \| '_ \| '_ ` _ \| | | |/ /______| '_ \| '__/ _ \| |/ _ \/ __| __|
- | | | | | | |_) | | | | | | |_| / /_      | |_) | | | (_) | |  __/ (__| |_ 
- |_| |_| |_| .__/|_| |_| |_|\___/____|     | .__/|_|  \___/| |\___|\___|\__|
-           | |                             | |            _/ |              
-           |_|                             |_|           |__/               
+================================================
+          Swiss Road Accident Analysis
+================================================
+
+         _______                   _______
+        /|_||_\`.__     \ | /   __.'/_||_|\
+       (   _    _ _\  --*BAM*--  /_ _    _   )
+       =`-(_)--(_)-'    / | \    '-(_)--(_)-'=
+
+================================================
 ```
 
 This project was developed as part of the MPM02 (Applied Machine Learning and Predictive Modelling 1) module within the Master of Science in Applied Information and Data Science at [HSLU](https://www.hslu.ch/en/). It encompasses a comprehensive end-to-end data analysis, applying various machine learning and statistical modeling techniques covered in the curriculum.
@@ -36,28 +38,40 @@ The repository is organized to ensure a clean separation between raw data, proce
 └── utilities       # Helper functions (e.g., data cleaning, custom plotting themes)
 ```
 
+## Prerequisites
+
+- R >= 4.2
+- [Quarto](https://quarto.org/docs/get-started/) >= 1.4
+- `renv` R package (installed automatically via `.Rprofile` on first session)
+
 ## Setup & Reproducibility
 
-This project uses `renv` to manage local R dependencies, ensuring that the code runs with the exact same package versions it was built with.
+This project uses `renv` to manage R package dependencies, pinning exact versions via `renv.lock` to ensure reproducible execution.
 
-### 1. Clone the repository:
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/nilsrechberger/mscids-mpm02-project.git
 cd mscids-mpm02-project
 ```
 
-### 2. Restore dependencies:
+### 2. Configure environment variables
 
-Open the R project (e.g., via RStudio or VS Code). `renv` should bootstrap itself automatically. To install the required packages, run:
+Copy `.env.example` to `.env` and adjust any paths or settings as needed:
 
 ```bash
+cp .env.example .env
+```
+
+### 3. Restore dependencies
+
+Open the project in RStudio or VS Code. `renv` bootstraps itself automatically via `.Rprofile`. To install all required packages:
+
+```r
 renv::restore()
 ```
 
-### 3. Render the report:
-
-To generate the final analysis report, ensure you have Quarto installed and run:
+### 4. Render the report
 
 ```bash
 quarto render report.qmd
