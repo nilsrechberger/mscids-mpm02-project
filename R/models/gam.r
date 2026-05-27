@@ -54,3 +54,10 @@ dir.create(here("models"), showWarnings = FALSE)
 saveRDS(gam_model, here("models", "gam_binomial.rds"))
 
 cat("GAM model successfully saved to models/gam_binomial.rds\n")
+
+train <- readRDS(here("data", "train.rds"))
+val   <- readRDS(here("data", "val.rds"))
+
+cat("Train rows:", nrow(train), "\n")
+cat("Val rows:", nrow(val), "\n")
+
