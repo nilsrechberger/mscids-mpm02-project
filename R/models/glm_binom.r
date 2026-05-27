@@ -25,7 +25,6 @@ prepare_glm_data <- function(df) {
 
 train_glm <- prepare_glm_data(train)
 val_glm   <- prepare_glm_data(val)
-test_glm  <- prepare_glm_data(test)
 
 glm_bin <- glm(
   AccidentInvolvingPedestrian ~
@@ -50,3 +49,4 @@ dir.create(here("models"), showWarnings = FALSE)
 saveRDS(glm_bin, here("models", "glm_bin.rds"))
 
 cat("Model successfully saved to models/glm_bin.rds\n") 
+
