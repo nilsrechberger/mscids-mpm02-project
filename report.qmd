@@ -152,7 +152,7 @@ in the EDA.
 
 ```{r lm-fit}
 #| cache: true
-rmse <- function(y, yhat) sqrt(mean((y - yhat)^2))
+rmse <- function(y, yhat) sqrt(mean((y - yhat)^2, na.rm = TRUE))
 
 lm1 <- lm(AccidentLocation_CHLV95_N ~ AccidentType_en + RoadType_en,
            data = train)
