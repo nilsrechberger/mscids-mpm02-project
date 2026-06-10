@@ -1,13 +1,4 @@
 ---
-title: "mscids-mpm02-project"
-date: 2026-03-16
-author:
-  - Zafi Nasser
-  - Kukaj Aulona
-  - Rechberger Nils
----
-
----
 title: "Swiss Road Accident Analysis"
 subtitle: "Spatial, Temporal, and Predictive Modelling of ASTRA Accident Data"
 date: 2026-03-16
@@ -24,17 +15,17 @@ library(here)
 library(knitr)
 ```
 
-## Introduction
+# Introduction
 
 Switzerland records tens of thousands of road accidents each year. The Swiss Federal Roads Office (ASTRA) maintains a public register of individual accident events covering all Swiss cantons from 2011 to 2023. This report applies a suite of statistical and machine learning methods to uncover spatial, temporal, and contextual patterns in accident occurrence, with the aim of providing actionable insights for road safety planning.
 
-## Persona & Use Case
+# Persona & Use Case
 
 **Persona: Road Safety Analyst at ASTRA**
 
 Sandra Meier, 38, works as a data analyst in the Road Safety division of the Swiss Federal Roads Office (ASTRA). She has a background in applied statistics and collaborates with cantonal traffic authorities, urban planners, and enforcement agencies. Her mandate is to translate raw accident data into evidence-based recommendations, identifying where, when, and under what conditions accidents cluster, so that limited prevention budgets can be directed where they matter most.
 
-### Use case
+## Use case
 
 Sandra needs to present a quarterly briefing to cantonal road safety coordinators. She wants to move beyond simple accident counts and answer three concrete questions:
 
@@ -42,7 +33,7 @@ Sandra needs to present a quarterly briefing to cantonal road safety coordinator
 2. **When** are accident rates elevated — and how do road type and time of day jointly shape expected accident frequency?
 3. **Who** is at risk — can road and contextual features flag accidents likely to involve vulnerable road users such as pedestrians, cyclists, or motorcyclists?
 
-## Data
+# Data
 
 The dataset contains one row per accident, with the following key variables:
 
@@ -95,11 +86,11 @@ test  <- add_features(test)
 
 ---
 
-## Linear Model {#sec-lm}
+# Linear Model {#sec-lm}
 
 **Section lead: Rechberger Nils**
 
-### Motivation
+## Motivation
 
 The Linear Model addresses a spatial question:
 *Can accident-intrinsic characteristics predict where in Switzerland —
@@ -118,7 +109,7 @@ characteristics.
 Instead, we use accident-intrinsic features — type, severity, road class,
 time of day, and month — to explain north–south variation.
 
-### Exploratory Analysis
+## Exploratory Analysis
 
 ```{r lm-eda-boxplot}
 #| fig-cap: "North coordinate varies by accident type: junction-related and parking accidents (typically urban, further north) differ from overtaking accidents (more rural/motorway, distributed across latitudes)."
@@ -140,7 +131,7 @@ ggplot(train, aes(x = hour, y = AccidentLocation_CHLV95_N)) +
   theme_minimal()
 ```
 
-### Model Specification
+## Model Specification
 
 We fit two nested models and compare them.
 
@@ -185,7 +176,7 @@ bind_rows(glance_lm(lm1, "lm1 — baseline"),
   kable(caption = "Linear model comparison on the validation set")
 ```
 
-### Cross-Validation
+## Cross-Validation
 
 To confirm that lm2 generalises beyond the training set, we perform 5-fold
 cross-validation (seed 42).
@@ -214,7 +205,7 @@ cat(sprintf("5-fold CV RMSE (lm2): %d ± %d metres",
 The cross-validated RMSE is consistent with the validation RMSE, confirming
 that lm2 does not overfit.
 
-### Residual Diagnostics
+## Residual Diagnostics
 
 ```{r lm-residuals}
 #| fig-cap: "Residuals vs fitted values for lm2. The smoother (blue) is approximately flat around zero, indicating no severe systematic bias. Some heteroscedasticity is present, which is typical for geographic coordinate data."
@@ -228,7 +219,7 @@ tibble(fitted = fitted(lm2), residuals = resid(lm2)) |>
   theme_minimal()
 ```
 
-### Coefficient Interpretation
+## Coefficient Interpretation
 
 ```{r lm-coef-roadtype}
 #| fig-cap: "Road type coefficients from lm2 (reference: minor road). Accidents on principal roads occur systematically further north than on minor roads; accidents in the 'other' category (motorways, tunnels) tend to be further south."
@@ -277,11 +268,11 @@ variation while leaving residual spatial noise unexplained.
 
 ---
 
-## GLM — Poisson Family {#sec-poisson}
+# GLM — Poisson Family {#sec-poisson}
 
 **Section lead: Kukaj Aulona**
 
-### Motivation
+## Motivation
 
 The Poisson GLM addresses a complementary question:
 *How many accidents occur across different road types and times of day,
@@ -297,7 +288,7 @@ recorded in that cell across all years in the training data.
 This aggregation is methodologically standard for Poisson regression
 on event-rate data.
 
-### Data Preparation
+## Data Preparation
 
 ```{r poisson-aggregate}
 accident_counts <- train %>%
@@ -314,7 +305,7 @@ cat(sprintf("Cells: %d  |  Count range: %d–%d  |  Mean: %.1f  |  Var: %.1f",
 The mean and variance of `n_accidents` are reported above; if variance
 substantially exceeds the mean, overdispersion will need to be addressed.
 
-### Exploratory Analysis
+## Exploratory Analysis
 
 ```{r poisson-eda-hour}
 #| fig-cap: "Average accident count per hour, faceted by road type. The bimodal pattern (morning and evening peaks) reflects commuting traffic; minor roads show the highest absolute counts."
@@ -342,7 +333,7 @@ accident_counts %>%
   theme_minimal()
 ```
 
-### Model Specification
+## Model Specification
 
 Three nested Poisson GLMs are fitted with `family = poisson`.
 
@@ -365,7 +356,7 @@ glm_p3 <- glm(
 )
 ```
 
-### Model Comparison
+## Model Comparison
 
 ```{r poisson-comparison}
 #| echo: false
@@ -392,7 +383,7 @@ counts.
 Whether the road-type × hour interaction (glm_p3) adds meaningful
 improvement is assessed by the likelihood-ratio test above.
 
-### Overdispersion Check
+## Overdispersion Check
 
 ```{r poisson-overdispersion}
 disp <- deviance(glm_p2) / df.residual(glm_p2)
@@ -416,7 +407,7 @@ If the ratio exceeds 1.5, a quasi-Poisson model (same coefficient estimates,
 inflated standard errors) provides more conservative inference; the
 quasi-Poisson fit is computed in the background for comparison when needed.
 
-### Coefficient Interpretation
+## Coefficient Interpretation
 
 In a Poisson GLM, coefficients are on the log-rate scale.
 Exponentiating gives **rate ratios** (multiplicative effects on expected count).
@@ -482,11 +473,142 @@ accident_counts %>%
 
 ---
 
-## Declaration of AI Usage
+# Artificial Neural Network {#sec-ann}
+
+## Motivation
+
+Artificial neural networks (ANNs) are computational models that learn complex, non-linear relationships by passing data through layers of interconnected neurons. Unlike linear models or GLMs, ANNs impose no distributional assumption on the response and can capture interactions between features automatically. For predicting accident severity — a four-class outcome with heavily imbalanced categories — these properties make ANNs an interesting candidate beyond purely additive models.
+
+We use an ANN to predict the accident severity category (`AccidentSeverityCategory_en`) from a set of features including road type, road surface condition, lighting conditions, and time-related variables.
+
+## Exploratory Analysis
+
+A prerequisite for training a reliable ANN is understanding the class distribution of the response variable. Heavily imbalanced classes can bias the network towards the majority class, as the loss function is dominated by the more frequent observations.
+
+![Accident severity category distribution](img/C01_severity_distribution.png)
+
+The distribution is strongly skewed: property-damage accidents account for approximately 78% of all records, while fatal accidents represent less than 0.2%. Training on raw counts would cause the network to learn a near-trivial rule that predicts property damage for almost every observation.
+
+To counteract this, we compute inverse-frequency class weights that scale each observation's contribution to the loss proportionally to how rare its class is:
+
+```python
+# Calculate class weights (Imbalance Handling)
+class_counts <- table(train$AccidentSeverityCategory_en)
+class_weights <- 1 / class_counts
+class_weights <- (class_weights / sum(class_weights)) * nrow(train)
+model_weights <- class_weights[train$AccidentSeverityCategory_en]
+```
+
+This normalises the total weight to the number of training observations and assigns each sample a per-observation weight, so all four severity classes contribute equally to gradient updates during training.
+
+## Model Specification
+
+We optimise the network using two complementary techniques: 5-fold cross-validation to obtain stable performance estimates, and grid search over a small hyperparameter space to select the best architecture.
+
+### Cross-Validation
+
+Five-fold cross-validation repeatedly splits the training data into four fitting folds and one evaluation fold, rotating until every observation has served as a validation sample. This reduces variance in the performance estimate compared to a single held-out split.
+
+```python
+train_ctrl <- trainControl(
+  method = "cv",
+  number = 5,
+  verboseIter = TRUE,
+  classProbs = TRUE,
+  summaryFunction = multiClassSummary
+)
+```
+
+Setting `classProbs = TRUE` instructs the network to output soft class probabilities rather than a hard label, which enables richer metrics such as AUC and log-loss alongside accuracy during fold evaluation.
+
+### Hyperparameter Tuning
+
+Grid search evaluates every combination of candidate hyperparameter values and selects the configuration that achieves the lowest cross-validated error. Although exhaustive grids scale poorly, the small search space here (nine combinations) makes the computational cost manageable.
+
+```python
+tune_grid <- expand.grid(
+  size = c(3, 5, 7),
+  decay = c(0.01, 0.1, 0.5)
+)
+```
+
+The `size` parameter controls the number of neurons in the single hidden layer. We test values of $3$, $5$, and $7$ to explore shallow versus slightly wider architectures. The `decay` parameter is an L2 regularisation penalty that shrinks connection weights towards zero, reducing overfitting; we test values $0.01$, $0.1$, and $0.5$ to cover a range from minimal to substantial regularisation.
+
+## ANN Model
+
+The final model passes the class weights, the tuning grid, and the cross-validation controller to `caret::train`, which fits one network per hyperparameter combination per fold and selects the best configuration automatically.
+
+```python
+nn <- train(
+  AccidentSeverityCategory_en ~ .,
+  data = train,
+  method = "nnet",
+  preProcess = c("center", "scale"),
+  tuneGrid = tune_grid,
+  trControl = train_ctrl,
+  weights = model_weights,
+  maxit = 500,
+  MaxNWts = max_nwts,
+  trace = FALSE
+)
+```
+
+The `preProcess = c("center", "scale")` step standardises all numeric inputs to zero mean and unit variance before each network is fitted, which is necessary because neural networks are sensitive to the scale of their inputs. The `maxit = 500` argument limits training to 500 weight-update iterations per fit. Without this cap, combinations with poor initialisation or conflicting class-weight signals could stall in a flat region of the loss surface and never converge, making the grid search impractically slow.
+
+## Diagnosis
+
+The best hyperparameter combination identified by cross-validation was **size = 3** (three hidden neurons) and **decay = 0.5** (weight-decay regularisation). These values were selected by minimising cross-validated classification error across the tuning grid.
+
+**Validation set performance** (held-out data not used during training):
+
+| Metric | Value |
+|--------|-------|
+| Overall Accuracy | 64.95% |
+| 95% CI | (64.18%, 65.71%) |
+| No Information Rate | 78.21% |
+| Cohen's Kappa | 0.258 |
+
+The accuracy of 64.95% is **below the no-information rate** (78.21%), which simply predicts the dominant class — property-damage accidents — for every observation. The p-value for accuracy > NIR is 1, confirming the model does not outperform the naïve baseline overall.
+
+Performance is strongly differentiated by class:
+
+| Class | Sensitivity | Specificity | Balanced Accuracy |
+|-------|-------------|-------------|-------------------|
+| Fatalities | 40.9% | 90.7% | 65.8% |
+| Light injuries | 23.9% | 86.5% | 55.2% |
+| Property damage | 75.1% | 79.0% | 77.1% |
+| Severe injuries | 51.2% | 89.5% | 70.4% |
+
+The model concentrates predictive power on the majority class (property damage), which it detects with 75% sensitivity and a positive predictive value of 93%. Minority classes are poorly recovered: only 24% of light-injury accidents and 9% of fatal accidents are correctly classified (detection prevalence far exceeds true prevalence for fatalities, indicating many false positives).
+
+**Test set performance** is very close to the validation results (accuracy 64.71%, Kappa 0.260), confirming that the validation estimates are stable and the model is not overfitting to the validation partition. No meaningful train–test gap is present.
+
+The low Kappa (≈ 0.26) indicates only slight-to-fair agreement beyond chance across the four severity classes.
+
+## Parameter Interpretation
+
+The ANN operates as a black-box model: individual hidden-layer weights do not have a direct, human-readable interpretation analogous to regression coefficients. However, the selected hyperparameters and the pattern of class-level performance allow the following conclusions:
+
+**Weight decay (λ = 0.5):** A relatively high regularisation penalty was selected by cross-validation. This shrinks connection weights towards zero and prevents the three-neuron hidden layer from memorising training noise. It is consistent with the moderate feature set and a training corpus where class boundaries are blurry.
+
+**Hidden neurons (size = 3):** A shallow, narrow architecture was optimal. Three neurons are sufficient to capture the dominant structure of the data — primarily the large share of property-damage accidents — but insufficient to learn fine-grained patterns that would allow minority-class recovery. Larger architectures (tested during tuning) likely overfit given the regularisation constraints.
+
+**Class imbalance effect:** The class distribution is highly skewed (≈ 78% property damage, ≈ 18% light injuries, ≈ 3.6% severe injuries, ≈ 0.15% fatalities). Without class-weighting or oversampling, the model's loss function is dominated by the majority class, which explains why the network learns a near-trivial decision rule that favours property damage. The low positive predictive value for fatalities (0.6%) despite moderate sensitivity (41%) confirms that the model triggers the fatality class very rarely and essentially at random when it does.
+
+**Comparison to baseline:** The model's overall accuracy (65%) is below the no-information rate (78%), but the balanced accuracy for severe injuries (70%) and fatalities (66%) is meaningfully above the 50% random baseline, suggesting the network captures some signal for rarer classes — even if operational precision is too low for practical use.
+
+**Key Findings:**
+
+- The ANN achieves 64.95% validation accuracy and 64.71% test accuracy with a Cohen's Kappa of ≈ 0.26 (slight–fair agreement).
+- Performance is dominated by the majority class (property damage, 78% of records); minority-class recall is substantially lower.
+- The selected architecture (3 hidden neurons, decay = 0.5) is small and heavily regularised, consistent with the difficulty of separating severity classes from the available features alone.
+- Results are stable across validation and test splits, confirming no overfitting.
+
+# Declaration of AI Usage
 
 During the course of this project, Artificial Intelligence (AI) tools were utilized in a strictly supportive capacity. Specifically, AI assistance was employed for project organization, to aid in the debugging process, and to perform occasional grammar and spelling checks on my original writing. AI was not used for the generation of any original text content or for writing code from scratch. All core concepts, development, code implementation, and written material are entirely my own original work.
 
-### Reason for choosing AI tools
+## Reason for choosing AI tools
 
 - Project Organization: A lack of experience with large-scale ML projects can be challenging at the outset. The implementation of AI-supported project management has enabled the establishment of a solid project structure.
 
@@ -494,6 +616,6 @@ During the course of this project, Artificial Intelligence (AI) tools were utili
 
 - Proofreading: Writing academic and technical documents can present certain challenges. To ensure a consistent style throughout the project report, artificial intelligence was used for grammar checking and proofreading.
 
-### Critical thinking when using AI
+## Critical thinking when using AI
 
 The AI instruments were not equipped with a comprehensive overview of the project, its requirements, or the project members' intended thoughts. It is imperative that generated output, such as recommendations and improvements, is meticulously reviewed to ensure its accuracy and potential integration into the project concept.
