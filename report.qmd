@@ -497,3 +497,134 @@ During the course of this project, Artificial Intelligence (AI) tools were utili
 ### Critical thinking when using AI
 
 The AI instruments were not equipped with a comprehensive overview of the project, its requirements, or the project members' intended thoughts. It is imperative that generated output, such as recommendations and improvements, is meticulously reviewed to ensure its accuracy and potential integration into the project concept.
+
+## Artificial Neural Network {#sec-ann}
+
+### Motivation
+
+Artificial neural networks (ANNs) are computational models that learn complex, non-linear relationships by passing data through layers of interconnected neurons. Unlike linear models or GLMs, ANNs impose no distributional assumption on the response and can capture interactions between features automatically. For predicting accident severity — a four-class outcome with heavily imbalanced categories — these properties make ANNs an interesting candidate beyond purely additive models.
+
+We use an ANN to predict the accident severity category (`AccidentSeverityCategory_en`) from a set of features including road type, road surface condition, lighting conditions, and time-related variables.
+
+### Exploratory Analysis
+
+A prerequisite for training a reliable ANN is understanding the class distribution of the response variable. Heavily imbalanced classes can bias the network towards the majority class, as the loss function is dominated by the more frequent observations.
+
+![Accident severity category distribution](img/C01_severity_distribution.png)
+
+The distribution is strongly skewed: property-damage accidents account for approximately 78% of all records, while fatal accidents represent less than 0.2%. Training on raw counts would cause the network to learn a near-trivial rule that predicts property damage for almost every observation.
+
+To counteract this, we compute inverse-frequency class weights that scale each observation's contribution to the loss proportionally to how rare its class is:
+
+```python
+# Calculate class weights (Imbalance Handling)
+class_counts <- table(train$AccidentSeverityCategory_en)
+class_weights <- 1 / class_counts
+class_weights <- (class_weights / sum(class_weights)) * nrow(train)
+model_weights <- class_weights[train$AccidentSeverityCategory_en]
+```
+
+This normalises the total weight to the number of training observations and assigns each sample a per-observation weight, so all four severity classes contribute equally to gradient updates during training.
+
+### Model Specification
+
+We optimise the network using two complementary techniques: 5-fold cross-validation to obtain stable performance estimates, and grid search over a small hyperparameter space to select the best architecture.
+
+#### Cross-Validation
+
+Five-fold cross-validation repeatedly splits the training data into four fitting folds and one evaluation fold, rotating until every observation has served as a validation sample. This reduces variance in the performance estimate compared to a single held-out split.
+
+```python
+train_ctrl <- trainControl(
+  method = "cv",
+  number = 5,
+  verboseIter = TRUE,
+  classProbs = TRUE,
+  summaryFunction = multiClassSummary
+)
+```
+
+Setting `classProbs = TRUE` instructs the network to output soft class probabilities rather than a hard label, which enables richer metrics such as AUC and log-loss alongside accuracy during fold evaluation.
+
+#### Hyperparameter Tuning
+
+Grid search evaluates every combination of candidate hyperparameter values and selects the configuration that achieves the lowest cross-validated error. Although exhaustive grids scale poorly, the small search space here (nine combinations) makes the computational cost manageable.
+
+```python
+tune_grid <- expand.grid(
+  size = c(3, 5, 7),
+  decay = c(0.01, 0.1, 0.5)
+)
+```
+
+The `size` parameter controls the number of neurons in the single hidden layer. We test values of $3$, $5$, and $7$ to explore shallow versus slightly wider architectures. The `decay` parameter is an L2 regularisation penalty that shrinks connection weights towards zero, reducing overfitting; we test values $0.01$, $0.1$, and $0.5$ to cover a range from minimal to substantial regularisation.
+
+### ANN Model
+
+The final model passes the class weights, the tuning grid, and the cross-validation controller to `caret::train`, which fits one network per hyperparameter combination per fold and selects the best configuration automatically.
+
+```python
+nn <- train(
+  AccidentSeverityCategory_en ~ .,
+  data = train,
+  method = "nnet",
+  preProcess = c("center", "scale"),
+  tuneGrid = tune_grid,
+  trControl = train_ctrl,
+  weights = model_weights,
+  maxit = 500,
+  MaxNWts = max_nwts,
+  trace = FALSE
+)
+```
+
+The `preProcess = c("center", "scale")` step standardises all numeric inputs to zero mean and unit variance before each network is fitted, which is necessary because neural networks are sensitive to the scale of their inputs. The `maxit = 500` argument limits training to 500 weight-update iterations per fit. Without this cap, combinations with poor initialisation or conflicting class-weight signals could stall in a flat region of the loss surface and never converge, making the grid search impractically slow.
+
+### Diagnosis
+
+The best hyperparameter combination identified by cross-validation was **size = 3** (three hidden neurons) and **decay = 0.5** (weight-decay regularisation). These values were selected by minimising cross-validated classification error across the tuning grid.
+
+**Validation set performance** (held-out data not used during training):
+
+| Metric | Value |
+|--------|-------|
+| Overall Accuracy | 64.95% |
+| 95% CI | (64.18%, 65.71%) |
+| No Information Rate | 78.21% |
+| Cohen's Kappa | 0.258 |
+
+The accuracy of 64.95% is **below the no-information rate** (78.21%), which simply predicts the dominant class — property-damage accidents — for every observation. The p-value for accuracy > NIR is 1, confirming the model does not outperform the naïve baseline overall.
+
+Performance is strongly differentiated by class:
+
+| Class | Sensitivity | Specificity | Balanced Accuracy |
+|-------|-------------|-------------|-------------------|
+| Fatalities | 40.9% | 90.7% | 65.8% |
+| Light injuries | 23.9% | 86.5% | 55.2% |
+| Property damage | 75.1% | 79.0% | 77.1% |
+| Severe injuries | 51.2% | 89.5% | 70.4% |
+
+The model concentrates predictive power on the majority class (property damage), which it detects with 75% sensitivity and a positive predictive value of 93%. Minority classes are poorly recovered: only 24% of light-injury accidents and 9% of fatal accidents are correctly classified (detection prevalence far exceeds true prevalence for fatalities, indicating many false positives).
+
+**Test set performance** is very close to the validation results (accuracy 64.71%, Kappa 0.260), confirming that the validation estimates are stable and the model is not overfitting to the validation partition. No meaningful train–test gap is present.
+
+The low Kappa (≈ 0.26) indicates only slight-to-fair agreement beyond chance across the four severity classes.
+
+### Parameter Interpretation
+
+The ANN operates as a black-box model: individual hidden-layer weights do not have a direct, human-readable interpretation analogous to regression coefficients. However, the selected hyperparameters and the pattern of class-level performance allow the following conclusions:
+
+**Weight decay (λ = 0.5):** A relatively high regularisation penalty was selected by cross-validation. This shrinks connection weights towards zero and prevents the three-neuron hidden layer from memorising training noise. It is consistent with the moderate feature set and a training corpus where class boundaries are blurry.
+
+**Hidden neurons (size = 3):** A shallow, narrow architecture was optimal. Three neurons are sufficient to capture the dominant structure of the data — primarily the large share of property-damage accidents — but insufficient to learn fine-grained patterns that would allow minority-class recovery. Larger architectures (tested during tuning) likely overfit given the regularisation constraints.
+
+**Class imbalance effect:** The class distribution is highly skewed (≈ 78% property damage, ≈ 18% light injuries, ≈ 3.6% severe injuries, ≈ 0.15% fatalities). Without class-weighting or oversampling, the model's loss function is dominated by the majority class, which explains why the network learns a near-trivial decision rule that favours property damage. The low positive predictive value for fatalities (0.6%) despite moderate sensitivity (41%) confirms that the model triggers the fatality class very rarely and essentially at random when it does.
+
+**Comparison to baseline:** The model's overall accuracy (65%) is below the no-information rate (78%), but the balanced accuracy for severe injuries (70%) and fatalities (66%) is meaningfully above the 50% random baseline, suggesting the network captures some signal for rarer classes — even if operational precision is too low for practical use.
+
+**Key Findings:**
+
+- The ANN achieves 64.95% validation accuracy and 64.71% test accuracy with a Cohen's Kappa of ≈ 0.26 (slight–fair agreement).
+- Performance is dominated by the majority class (property damage, 78% of records); minority-class recall is substantially lower.
+- The selected architecture (3 hidden neurons, decay = 0.5) is small and heavily regularised, consistent with the difficulty of separating severity classes from the available features alone.
+- Results are stable across validation and test splits, confirming no overfitting.
