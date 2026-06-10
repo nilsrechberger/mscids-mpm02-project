@@ -57,10 +57,10 @@ cd mscids-mpm02-project
 
 ### 2. Configure environment variables
 
-Copy `.env.example` to `.env` and adjust any paths or settings as needed:
+Use this template to create your `.env` file:
 
-```bash
-cp .env.example .env
+```txt
+DATA_URL=PATH_TO_DATA_URL
 ```
 
 ### 3. Restore dependencies
