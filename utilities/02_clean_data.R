@@ -15,7 +15,7 @@ raw_data_path <- here("data", "raw", "raw_data.csv")
 if (!file.exists(raw_data_path)) stop("Raw data not found!")
 
 processed_data_path <- here("data", "processed", "processed_data.rds")
-processed_data_preview_path <- here("data", "processed", "processed_data.csv")
+processed_data_preview_path <- here("data", "processed", "processed_data_preview.csv")
 raw_data <- read_csv(raw_data_path)
 
 # Cleaning pipeline
