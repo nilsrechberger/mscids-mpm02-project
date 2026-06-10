@@ -482,22 +482,6 @@ accident_counts %>%
 
 ---
 
-## Declaration of AI Usage
-
-During the course of this project, Artificial Intelligence (AI) tools were utilized in a strictly supportive capacity. Specifically, AI assistance was employed for project organization, to aid in the debugging process, and to perform occasional grammar and spelling checks on my original writing. AI was not used for the generation of any original text content or for writing code from scratch. All core concepts, development, code implementation, and written material are entirely my own original work.
-
-### Reason for choosing AI tools
-
-- Project Organization: A lack of experience with large-scale ML projects can be challenging at the outset. The implementation of AI-supported project management has enabled the establishment of a solid project structure.
-
-- Debugging: Despite a solid understanding of the R programming language, identifying bugs can still pose a significant challenge. The use of artificial intelligence has proven helpful in detecting and eliminating software bugs, thereby optimizing the programming process.
-
-- Proofreading: Writing academic and technical documents can present certain challenges. To ensure a consistent style throughout the project report, artificial intelligence was used for grammar checking and proofreading.
-
-### Critical thinking when using AI
-
-The AI instruments were not equipped with a comprehensive overview of the project, its requirements, or the project members' intended thoughts. It is imperative that generated output, such as recommendations and improvements, is meticulously reviewed to ensure its accuracy and potential integration into the project concept.
-
 ## Artificial Neural Network {#sec-ann}
 
 ### Motivation
@@ -628,3 +612,19 @@ The ANN operates as a black-box model: individual hidden-layer weights do not ha
 - Performance is dominated by the majority class (property damage, 78% of records); minority-class recall is substantially lower.
 - The selected architecture (3 hidden neurons, decay = 0.5) is small and heavily regularised, consistent with the difficulty of separating severity classes from the available features alone.
 - Results are stable across validation and test splits, confirming no overfitting.
+
+## Declaration of AI Usage
+
+During the course of this project, Artificial Intelligence (AI) tools were utilized in a strictly supportive capacity. Specifically, AI assistance was employed for project organization, to aid in the debugging process, and to perform occasional grammar and spelling checks on my original writing. AI was not used for the generation of any original text content or for writing code from scratch. All core concepts, development, code implementation, and written material are entirely my own original work.
+
+### Reason for choosing AI tools
+
+- Project Organization: A lack of experience with large-scale ML projects can be challenging at the outset. The implementation of AI-supported project management has enabled the establishment of a solid project structure.
+
+- Debugging: Despite a solid understanding of the R programming language, identifying bugs can still pose a significant challenge. The use of artificial intelligence has proven helpful in detecting and eliminating software bugs, thereby optimizing the programming process.
+
+- Proofreading: Writing academic and technical documents can present certain challenges. To ensure a consistent style throughout the project report, artificial intelligence was used for grammar checking and proofreading.
+
+### Critical thinking when using AI
+
+The AI instruments were not equipped with a comprehensive overview of the project, its requirements, or the project members' intended thoughts. It is imperative that generated output, such as recommendations and improvements, is meticulously reviewed to ensure its accuracy and potential integration into the project concept.
