@@ -604,6 +604,216 @@ The ANN operates as a black-box model: individual hidden-layer weights do not ha
 - The selected architecture (3 hidden neurons, decay = 0.5) is small and heavily regularised, consistent with the difficulty of separating severity classes from the available features alone.
 - Results are stable across validation and test splits, confirming no overfitting.
 
+# Support Vector Machine {#sec-svm}
+
+## Motivation
+
+A Support Vector Machine (SVM) is a supervised classification algorithm that constructs the decision boundary — the *hyperplane* — that maximises the geometric margin between classes in feature space. For linearly separable data this boundary is equidistant from the nearest training point of each class, the *support vectors*. Real data are rarely linearly separable, so the *kernel trick* implicitly maps inputs into a higher-dimensional feature space where a linear hyperplane corresponds to a curved boundary in the original space, without ever computing the mapping explicitly.
+
+We use an RBF (radial basis function) kernel SVM to address a purely spatial question:
+*Can the geographic location of a Swiss road accident predict its severity category?*
+
+The two predictors are the LV95 East (`E`) and North (`N`) coordinates of each accident. Restricting the feature set to spatial position alone isolates whether severity clusters geographically — for example because alpine routes or urban motorways concentrate fatal accidents in specific regions — without confounding this signal with accident-type or road-class information. The four-class response (`AccidentSeverityCategory_en`) is identical to the target used by the ANN in the preceding section, enabling a direct comparison of the two approaches.
+
+## Exploratory Analysis
+
+As with the ANN, the class distribution of the response must be examined before training. The severity distribution is strongly skewed (see the ANN section): property-damage accidents account for approximately 78% of records and fatal accidents for less than 0.2%. Training without adjustment would dominate the SVM's margin optimisation with the majority class.
+
+To counteract this, class weights are set to the reciprocal of each class's relative frequency:
+
+```{r svm-weights-display}
+#| eval: false
+w <- table(train_data$Severity)
+weights <- 1 / (w / sum(w))
+```
+
+Each class thereby exerts influence on the margin proportional to its rarity, preventing the decision boundary from simply enveloping the dominant property-damage cluster.
+
+The spatial scatter of test-set accidents below illustrates the core challenge: all four severity classes span the full LV95 coordinate range without forming compact, separable clusters. A linear kernel would be unable to find useful boundaries here; the RBF kernel's locally-adaptive decision surface is therefore necessary.
+
+![Accident locations by severity (test set sample)](img/SVM_accident_locations.png)
+
+## Model Specification
+
+### Cross-Validation
+
+An SVM's training complexity scales roughly as $\mathcal{O}(n^2)$ to $\mathcal{O}(n^3)$ with the number of observations, making a full-sample grid search over 70 000 rows impractical. We subsample up to 1 000 observations per severity class — at most 4 000 total — before running the hyperparameter search. The per-class cap preserves the class-weighting scheme and makes five-fold cross-validation over all nine hyperparameter combinations computationally tractable.
+
+```{r svm-subsample-display}
+#| eval: false
+set.seed(42)
+train_data <- do.call(rbind, lapply(
+  split(train_data, train_data$Severity),
+  function(g) g[sample(nrow(g), min(nrow(g), 1000)), ]
+))
+```
+
+Five-fold cross-validation is applied via `tune.svm`, which partitions the subsampled training data into five equal folds, fits a model on four folds, and evaluates classification error on the held-out fold. This rotates until every observation has served as a validation sample, and the average cross-validated error is used to rank hyperparameter combinations.
+
+### Hyperparameter Tuning
+
+The RBF kernel SVM has two key hyperparameters with complementary roles:
+
+- **Cost ($C$):** The soft-margin penalty. A large $C$ imposes a high cost on misclassified training points, producing a tight margin; a small $C$ tolerates more violations in exchange for a wider, more robust margin.
+- **Gamma ($\gamma$):** The bandwidth of the radial kernel. Small $\gamma$ gives each support vector broad influence over the coordinate space, yielding smooth decision boundaries; large $\gamma$ restricts influence to nearby points, producing complex, locally-fitted boundaries.
+
+Grid search evaluates all nine combinations of $C \in \{1, 10, 50\}$ and $\gamma \in \{0.01, 0.1, 1\}$:
+
+```{r svm-tune-display}
+#| eval: false
+tune_result <- tune.svm(
+  Severity ~ N + E,
+  data          = train_data,
+  kernel        = "radial",
+  cost          = c(1, 10, 50),
+  gamma         = c(0.01, 0.1, 1),
+  class.weights = weights,
+  tunecontrol   = tune.control(sampling = "cross", cross = 5)
+)
+```
+
+## SVM Model
+
+The combination with the lowest cross-validated error is used to refit a final model on the full subsampled training set. Setting `probability = TRUE` appends Platt-calibrated class probability estimates alongside hard-label predictions:
+
+```{r svm-refit-display}
+#| eval: false
+svm_model <- svm(
+  Severity ~ N + E,
+  data          = train_data,
+  kernel        = "radial",
+  cost          = best_params$cost,
+  gamma         = best_params$gamma,
+  class.weights = weights,
+  probability   = TRUE
+)
+```
+
+The saved model is loaded for all subsequent evaluation, and the validation and test sets are prepared to match the factor levels seen during training:
+
+```{r svm-load}
+#| cache: true
+library(e1071)
+library(caret)
+
+svm_model <- readRDS(here("models", "svm_mvp_model.rds"))
+
+prep_svm <- function(df) {
+  na.omit(data.frame(
+    N        = df$AccidentLocation_CHLV95_N,
+    E        = df$AccidentLocation_CHLV95_E,
+    Severity = factor(df$AccidentSeverityCategory_en,
+                      levels = svm_model$levels)
+  ))
+}
+
+val_svm  <- prep_svm(val)
+test_svm <- prep_svm(test)
+```
+
+```{r svm-eval}
+#| cache: true
+pred_val  <- predict(svm_model, newdata = val_svm)
+pred_test <- predict(svm_model, newdata = test_svm)
+
+cm_val  <- confusionMatrix(pred_val,  val_svm$Severity)
+cm_test <- confusionMatrix(pred_test, test_svm$Severity)
+```
+
+## Diagnosis
+
+The best hyperparameter combination identified by cross-validation is:
+
+```{r svm-best-params}
+#| echo: false
+tibble(
+  Hyperparameter   = c("Kernel", "Cost (C)", "Gamma (γ)"),
+  `Selected value` = c("Radial (RBF)",
+                        as.character(svm_model$cost),
+                        as.character(svm_model$gamma))
+) |> kable(caption = "Best SVM hyperparameters selected by 5-fold CV grid search")
+```
+
+**Validation set performance** (held-out data not used during training or tuning):
+
+```{r svm-overall-val}
+#| echo: false
+tibble(
+  Metric = c("Overall Accuracy", "95% CI",
+             "No Information Rate", "Cohen's Kappa"),
+  Value  = c(
+    sprintf("%.2f%%", cm_val$overall["Accuracy"] * 100),
+    sprintf("(%.2f%%, %.2f%%)",
+            cm_val$overall["AccuracyLower"] * 100,
+            cm_val$overall["AccuracyUpper"] * 100),
+    sprintf("%.2f%%", cm_val$overall["AccuracyNull"] * 100),
+    sprintf("%.3f",   cm_val$overall["Kappa"])
+  )
+) |> kable(caption = "SVM overall performance — validation set")
+```
+
+Performance is differentiated by class:
+
+```{r svm-class-val}
+#| echo: false
+byClass <- cm_val$byClass
+tibble(
+  Class               = str_remove(rownames(byClass), "^Class: "),
+  Sensitivity         = round(byClass[, "Sensitivity"],       3),
+  Specificity         = round(byClass[, "Specificity"],       3),
+  `Balanced Accuracy` = round(byClass[, "Balanced Accuracy"], 3)
+) |> kable(caption = "Per-class SVM performance — validation set")
+```
+
+**Test set performance** closely mirrors the validation results:
+
+```{r svm-overall-test}
+#| echo: false
+tibble(
+  Metric = c("Overall Accuracy", "No Information Rate", "Cohen's Kappa"),
+  Value  = c(
+    sprintf("%.2f%%", cm_test$overall["Accuracy"] * 100),
+    sprintf("%.2f%%", cm_test$overall["AccuracyNull"] * 100),
+    sprintf("%.3f",   cm_test$overall["Kappa"])
+  )
+) |> kable(caption = "SVM overall performance — test set")
+```
+
+Near-identical accuracy between the validation and test sets confirms that the model is not overfitting to the validation partition.
+
+The decision boundary the SVM learned over the LV95 coordinate plane is visualised below. The shaded background regions represent the class the model assigns to each geographic location; the coloured points are the test-set accidents overlaid on this boundary.
+
+![SVM decision boundary (test set sample)](img/SVM_decision_boundary.png)
+
+**Key findings:**
+
+- The SVM achieves `r sprintf("%.2f%%", cm_val$overall["Accuracy"] * 100)` validation accuracy and `r sprintf("%.2f%%", cm_test$overall["Accuracy"] * 100)` test accuracy with a Cohen's Kappa of ≈ `r round(cm_test$overall["Kappa"], 2)`.
+- Accuracy is below the no-information rate of `r sprintf("%.2f%%", cm_val$overall["AccuracyNull"] * 100)`, which predicts property-damage accidents for every observation — consistent with findings from the ANN.
+- Class weighting shifts predictive effort towards minority classes: sensitivity for fatal and severe-injury accidents is above the random baseline despite their rarity.
+- Validation and test accuracy are nearly identical, confirming stable generalisation with no overfitting to the validation partition.
+
+## Parameter Interpretation
+
+An RBF SVM does not produce interpretable coefficients in the way a regression model does. The learned boundary is defined implicitly by the support vectors and the kernel function. However, the selected hyperparameters and the pattern of class-level performance support the following conclusions:
+
+**Cost ($C$ = `r svm_model$cost`):** The cross-validated grid search selected $C$ from the set $\{1, 10, 50\}$. This controls the trade-off between margin width and training accuracy: a higher selected value indicates that the cross-validator preferred a tighter, more accurate boundary over a more permissive margin. In combination with class weights that heavily penalise misclassified rare-class observations, this incentivises the model to draw boundaries that reach into sparse minority-class regions of the coordinate space, at the cost of some misclassification among the majority class.
+
+**Gamma ($\gamma$ = `r svm_model$gamma`):** Selected from $\{0.01, 0.1, 1\}$, gamma controls the spatial scale at which the model responds to training examples. Values near 0.01 produce globally-influenced, smooth boundaries; values near 1 produce highly localised, complex boundaries. The selected value reflects the granularity at which severity patterns are statistically detectable in the LV95 coordinate plane.
+
+**Class imbalance effect:** The class distribution is heavily skewed (≈ 78% property damage, ≈ 18% light injuries, ≈ 3.6% severe injuries, ≈ 0.15% fatalities). Without class weighting, the SVM's margin optimisation would be dominated by the majority class, and the decision boundary would collapse to a near-trivial rule. The inverse-frequency weights force the model to attend to minority classes, which explains why balanced accuracy for fatal and severe-injury accidents exceeds the 50% random baseline despite their very low prevalence.
+
+**Spatial signal limitation:** The core difficulty is that accident severity has weak geographic signal: accidents of all severities occur across Switzerland's entire road network, and the four classes overlap substantially in the LV95 coordinate plane, as visible in the scatter plot above. The RBF kernel can capture complex, non-linear boundaries, but cannot create spatial structure where none exists in the data. The result is a model that detects broad regional severity tendencies — visible in the decision boundary plot — but cannot reliably separate individual accidents by severity from location alone.
+
+**Comparison to the ANN:** The ANN in the preceding section used a richer feature set (road type, accident type, severity context, time of day, month) and achieved approximately 65% accuracy with a Kappa of ≈ 0.26. The SVM here deliberately restricts itself to spatial coordinates, which provides a complementary geographic perspective but at the cost of predictive performance. Both models confirm that severity classes are difficult to separate with available features, and that the dominant property-damage class shapes model behaviour whenever class imbalance is not fully corrected.
+
+**Key Findings:**
+
+- Cross-validation selected $C$ = `r svm_model$cost` and $\gamma$ = `r svm_model$gamma`, balancing margin tightness against local boundary complexity over the two-dimensional coordinate space.
+- The SVM achieves `r sprintf("%.2f%%", cm_val$overall["Accuracy"] * 100)` validation accuracy and `r sprintf("%.2f%%", cm_test$overall["Accuracy"] * 100)` test accuracy (Kappa ≈ `r round(cm_test$overall["Kappa"], 2)`), consistent with the ANN's finding that severity is not easily separable from available features.
+- Restricting predictors to spatial coordinates isolates the geographic signal: the model detects broad regional severity tendencies but cannot overcome the extensive class overlap visible in the accident location plot.
+- Results are stable across validation and test splits, confirming no overfitting to the validation partition.
+
+
 # Declaration of AI Usage
 
 During the course of this project, Artificial Intelligence (AI) tools were utilized in a strictly supportive capacity. Specifically, AI assistance was employed for project organization, to aid in the debugging process, and to perform occasional grammar and spelling checks on my original writing. AI was not used for the generation of any original text content or for writing code from scratch. All core concepts, development, code implementation, and written material are entirely my own original work.

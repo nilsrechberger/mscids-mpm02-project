@@ -1,53 +1,60 @@
 library(here)
 library(e1071)
-library(caret) 
 
 # Load data
 train_raw <- readRDS(here("data", "train.rds"))
-test_raw  <- readRDS(here("data", "test.rds"))
 
-# Utility function for data prep
 prep_data <- function(df) {
   clean_df <- data.frame(
     N = df$AccidentLocation_CHLV95_N,
     E = df$AccidentLocation_CHLV95_E,
     Severity = as.factor(df$AccidentSeverityCategory_en)
   )
-  return(na.omit(clean_df))
+  na.omit(clean_df)
 }
 
 train_data <- prep_data(train_raw)
-test_data  <- prep_data(test_raw)
 
-# Calculate class weights (Imbalance Handling)
+# PoC: subsample to keep training fast (~2000 obs per class cap)
+set.seed(42)
+POC_PER_CLASS <- 1000
+train_data <- do.call(rbind, lapply(split(train_data, train_data$Severity), function(g) {
+  g[sample(nrow(g), min(nrow(g), POC_PER_CLASS)), ]
+}))
+
+# Class weights to handle imbalance
 w <- table(train_data$Severity)
 weights <- 1 / (w / sum(w))
 
-# Setting up model training (including tuning and cross-validation)
-cat("Start model training...\n")
+cat("Tuning SVM via 5-fold CV grid search (n =", nrow(train_data), ")...\n")
 
 tune_result <- tune.svm(
-  Severity ~ N + E, 
-  data = train_data, 
-  kernel = "radial",
+  Severity ~ N + E,
+  data          = train_data,
+  kernel        = "radial",
+  cost          = c(1, 10, 50),
+  gamma         = c(0.01, 0.1, 1),
   class.weights = weights,
-  # Test config
-  cost = c(1), 
-  gamma = c(0.1),
-  # Real tune config
-  # cost = c(1, 10, 50), 
-  # gamma = c(0.1, 1, 5),
-  tunecontrol = tune.control(sampling = "cross", cross = 2) # Use 5 for real training
+  tunecontrol   = tune.control(sampling = "cross", cross = 5)
 )
 
-cat("\nHyperparameter results:\n")
+cat("\nBest hyperparameters:\n")
 print(tune_result$best.parameters)
+cat("Best CV error:", tune_result$best.performance, "\n")
 
-# Extract best model
-best_svm <- tune_result$best.model
+# Refit best model with probability support
+best_params <- tune_result$best.parameters
+svm_model <- svm(
+  Severity ~ N + E,
+  data          = train_data,
+  kernel        = "radial",
+  cost          = best_params$cost,
+  gamma         = best_params$gamma,
+  class.weights = weights,
+  probability   = TRUE
+)
 
-# Save model
-if(!dir.exists(here("models"))) dir.create(here("models"))
-saveRDS(best_svm, here("models", "svm_mvp_model.rds"))
+if (!dir.exists(here("models"))) dir.create(here("models"))
+saveRDS(svm_model, here("models", "svm_mvp_model.rds"))
 
-cat("Model successfully saved to models/svm.rds!\n")
+cat("Model saved to models/svm_mvp_model.rds\n")
