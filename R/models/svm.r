@@ -15,13 +15,6 @@ prep_data <- function(df) {
 
 train_data <- prep_data(train_raw)
 
-# PoC: subsample to keep training fast (~2000 obs per class cap)
-set.seed(42)
-POC_PER_CLASS <- 1000
-train_data <- do.call(rbind, lapply(split(train_data, train_data$Severity), function(g) {
-  g[sample(nrow(g), min(nrow(g), POC_PER_CLASS)), ]
-}))
-
 # Class weights to handle imbalance
 w <- table(train_data$Severity)
 weights <- 1 / (w / sum(w))
