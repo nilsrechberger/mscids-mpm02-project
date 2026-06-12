@@ -6,7 +6,7 @@ format:
     documentclass: scrartcl 
     papersize: a4
     number-sections: true
-    toc: true
+    toc: false
     toc-depth: 3
     colorlinks: true
     geometry:
@@ -31,3 +31,4 @@ knitr:
   opts_chunk:
     fig.pos: 'H'
     out.width: '100%'
+    fig.height: 3.5
