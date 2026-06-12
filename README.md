@@ -24,6 +24,7 @@ The repository is organized to ensure a clean separation between raw data, proce
 ├── data            # Contains train, validation and test data sets
 │   ├── processed   # Cleaned and transformed data sets
 │   └── raw         # Original, immutable data source
+├── docs            # --> FINAL REPORT DIR WITH THE PDF <--
 ├── .env.example    # Example .env file for global configs and variables
 ├── .gitignore
 ├── img             # Static assets and visualizations for Report
