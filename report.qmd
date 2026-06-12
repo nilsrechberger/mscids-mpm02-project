@@ -8,11 +8,14 @@ author:
   - Rechberger Nils
 ---
 
+{{< pagebreak >}}
+
 ```{r setup}
 #| include: false
 library(tidyverse)
 library(here)
 library(knitr)
+library(kableExtra)
 ```
 
 # Introduction
@@ -47,23 +50,27 @@ tibble(
     "AccidentLocation_CHLV95_N", "n_accidents_canton_month", "accident_dt_dummy"
   ),
   Type = c(
-    "Categorical (7 levels)", "Categorical (3 levels)", "Categorical (3 levels)",
-    "Categorical (26 levels)", "Binary", "Binary",
-    "Binary", "Continuous (Swiss LV95 East)",
-    "Continuous (Swiss LV95 North)", "Count", "Datetime"
+    "Cat. (7)", "Cat. (3)", "Cat. (3)",
+    "Cat. (26)", "Binary", "Binary",
+    "Binary", "Cont. (LV95 E)", "Cont. (LV95 N)",
+    "Count", "Datetime"
   ),
   Role = c(
     "Predictor", "Predictor", "Predictor",
-    "Predictor", "Binary response / predictor", "Binary response / predictor",
-    "Binary response / predictor", "Predictor / LM response candidate",
-    "LM response", "Count predictor (accidents in same canton-month)",
-    "Source of hour & month features"
+    "Predictor", "Response / predictor", "Response / predictor",
+    "Response / predictor", "Predictor / response cand.",
+    "LM response (N coord.)", "Count predictor", "Hour & month source"
   )
-) |> kable(caption = "Variable overview")
+) |>
+  kable(caption = "Variable overview", booktabs = TRUE) |>
+  kable_styling(latex_options = "hold_position", font_size = 9) |>
+  column_spec(1, width = "5.5cm", monospace = TRUE) |>
+  column_spec(2, width = "2.5cm") |>
+  column_spec(3, width = "7cm")
 ```
 
 Data are split into training (70 000 rows), validation (15 000) and test
-(15 000) sets using a fixed random seed (total N = 100 000).
+(15 000) sets using a fixed random seed (total N = 130 000).
 All temporal features (hour of day, month) are extracted from the datetime
 column throughout the analysis.
 
@@ -87,8 +94,6 @@ test  <- add_features(test)
 ---
 
 # Linear Model {#sec-lm}
-
-**Section lead: Rechberger Nils**
 
 ## Motivation
 
@@ -475,6 +480,8 @@ accident_counts %>%
 
 # Artificial Neural Network {#sec-ann}
 
+> *Section lead: Rechberger Nils*
+
 ## Motivation
 
 Artificial neural networks (ANNs) are computational models that learn complex, non-linear relationships by passing data through layers of interconnected neurons. Unlike linear models or GLMs, ANNs impose no distributional assumption on the response and can capture interactions between features automatically. For predicting accident severity — a four-class outcome with heavily imbalanced categories — these properties make ANNs an interesting candidate beyond purely additive models.
@@ -605,6 +612,8 @@ The ANN operates as a black-box model: individual hidden-layer weights do not ha
 - Results are stable across validation and test splits, confirming no overfitting.
 
 # Support Vector Machine {#sec-svm}
+
+> *Section lead: Rechberger Nils*
 
 ## Motivation
 
