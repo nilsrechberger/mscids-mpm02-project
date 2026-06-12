@@ -8,8 +8,6 @@ author:
   - Rechberger Nils
 ---
 
-{{< pagebreak >}}
-
 ```{r setup}
 #| include: false
 library(tidyverse)
@@ -70,7 +68,7 @@ tibble(
 ```
 
 Data are split into training (70 000 rows), validation (15 000) and test
-(15 000) sets using a fixed random seed (total N = 130 000).
+(15 000) sets using a fixed random seed (total N = 100 000).
 All temporal features (hour of day, month) are extracted from the datetime
 column throughout the analysis.
 
@@ -94,6 +92,8 @@ test  <- add_features(test)
 ---
 
 # Linear Model {#sec-lm}
+
+**Section lead: Zafi Nasser**
 
 ## Motivation
 
@@ -124,15 +124,6 @@ ggplot(train, aes(x = fct_reorder(AccidentType_en, AccidentLocation_CHLV95_N),
   coord_flip() +
   labs(title = "North Coordinate by Accident Type",
        x = NULL, y = "LV95 North (metres)") +
-  theme_minimal()
-```
-
-```{r lm-eda-hour}
-#| fig-cap: "The smoother reveals a non-linear (roughly quadratic) relationship between hour of day and north coordinate, motivating the poly(hour, 2) term."
-ggplot(train, aes(x = hour, y = AccidentLocation_CHLV95_N)) +
-  geom_smooth(method = "loess", se = TRUE, colour = "tomato") +
-  labs(title = "North Coordinate vs Hour of Day",
-       x = "Hour (0–23)", y = "LV95 North (metres)") +
   theme_minimal()
 ```
 
@@ -210,20 +201,6 @@ cat(sprintf("5-fold CV RMSE (lm2): %d ± %d metres",
 The cross-validated RMSE is consistent with the validation RMSE, confirming
 that lm2 does not overfit.
 
-## Residual Diagnostics
-
-```{r lm-residuals}
-#| fig-cap: "Residuals vs fitted values for lm2. The smoother (blue) is approximately flat around zero, indicating no severe systematic bias. Some heteroscedasticity is present, which is typical for geographic coordinate data."
-tibble(fitted = fitted(lm2), residuals = resid(lm2)) |>
-  ggplot(aes(fitted, residuals)) +
-  geom_point(alpha = 0.04, size = 0.4) +
-  geom_hline(yintercept = 0, colour = "red", linewidth = 0.7) +
-  geom_smooth(se = FALSE, colour = "steelblue") +
-  labs(title = "Residuals vs Fitted — lm2",
-       x = "Fitted values (North, metres)", y = "Residuals") +
-  theme_minimal()
-```
-
 ## Coefficient Interpretation
 
 ```{r lm-coef-roadtype}
@@ -242,36 +219,11 @@ tibble(
 
 **Key findings:**
 
-- **Road type:** Accidents on principal roads are estimated to occur
-  `r abs(round(coef(lm2)["RoadType_enprincipal_road"]))` metres
-  `r ifelse(coef(lm2)["RoadType_enprincipal_road"] > 0, "further north", "further south")`
-  than comparable accidents on minor roads (holding all other predictors constant).
-  This reflects the concentration of principal roads in the Swiss Mittelland.
+- **Road type:** Principal road accidents occur `r abs(round(coef(lm2)["RoadType_enprincipal_road"]))` m `r ifelse(coef(lm2)["RoadType_enprincipal_road"] > 0, "further north", "further south")` than minor road accidents, reflecting the Mittelland concentration of principal roads.
+- **Accident type × road type:** Parking accidents cluster in northern urban centres; head-on collisions more often occur on southern mountain roads.
+- **Hour & month:** The quadratic hour term is significant (p < 0.001); winter months show a slight southward shift consistent with alpine incident patterns.
 
-- **Accident type:** The interaction `AccidentType × RoadType` captures how
-  certain accident types are geographically associated with specific road classes.
-  For example, parking accidents predominantly occur in urban centres situated
-  in the northern plateau, while head-on collisions more often happen on rural
-  mountain roads in the south.
-
-- **Hour of day:** The quadratic term is statistically significant
-  (F-test, p < 0.001), confirming that the time-of-day effect on accident
-  location is non-linear: midday accidents differ in their north–south
-  distribution compared to peak commute hours.
-
-- **Month:** Winter months show a slight southward shift in accident locations,
-  consistent with more road incidents in alpine areas due to snow and ice.
-
-**Overall fit:** lm2 explains
-`r round(summary(lm2)$r.squared * 100, 1)`% of the variance in north coordinate
-(R² = `r round(summary(lm2)$r.squared, 3)`).
-The validation RMSE of approximately
-`r round(rmse(val$AccidentLocation_CHLV95_N, predict(lm2, val)))` metres
-should be interpreted in the context of Switzerland's north–south span of
-roughly 220 km (220 000 m): the model accounts for meaningful geographic
-variation while leaving residual spatial noise unexplained.
-
----
+lm2 explains `r round(summary(lm2)$r.squared * 100, 1)`% of north-coordinate variance (R² = `r round(summary(lm2)$r.squared, 3)`); validation RMSE ≈ `r round(rmse(val$AccidentLocation_CHLV95_N, predict(lm2, val)))` m, a meaningful result relative to Switzerland's ~220 km north–south span.
 
 # GLM — Poisson Family {#sec-poisson}
 
@@ -325,19 +277,6 @@ accident_counts %>%
   theme_minimal()
 ```
 
-```{r poisson-eda-month}
-#| fig-cap: "Seasonal pattern of accident counts by road type. Summer months show elevated counts, particularly on minor roads — consistent with higher traffic volumes and bicycle/pedestrian activity."
-accident_counts %>%
-  group_by(RoadType_en, month) %>%
-  summarise(mean_n = mean(n_accidents), .groups = "drop") %>%
-  ggplot(aes(x = month, y = mean_n, colour = RoadType_en, group = RoadType_en)) +
-  geom_line(linewidth = 1) +
-  geom_point(size = 2) +
-  labs(title = "Mean Accident Count by Month and Road Type",
-       x = "Month", y = "Mean count per cell", colour = "Road type") +
-  theme_minimal()
-```
-
 ## Model Specification
 
 Three nested Poisson GLMs are fitted with `family = poisson`.
@@ -379,14 +318,18 @@ tibble(
 
 ```{r poisson-anova}
 #| echo: false
-anova(glm_p1, glm_p2, glm_p3, test = "Chisq")
+#| include: false
+aov_poisson  <- anova(glm_p1, glm_p2, glm_p3, test = "Chisq")
+p_interaction <- aov_poisson$`Pr(>Chi)`[3]
 ```
 
 Adding hour and month (glm_p2) yields a massive drop in AIC and deviance
 relative to the baseline, confirming strong temporal structure in accident
-counts.
-Whether the road-type × hour interaction (glm_p3) adds meaningful
-improvement is assessed by the likelihood-ratio test above.
+counts. A likelihood-ratio test (χ² comparison of glm_p2 vs glm_p3) shows
+that the road-type × hour interaction is
+`r ifelse(p_interaction < 0.05, paste0("significant (p = ", formatC(p_interaction, format = "e", digits = 2), ")"), paste0("not significant (p = ", round(p_interaction, 3), ")"))`,
+meaning the daily rhythm
+`r ifelse(p_interaction < 0.05, "differs meaningfully by road class", "does not differ significantly by road class once main effects are controlled")`.
 
 ## Overdispersion Check
 
@@ -453,34 +396,322 @@ accident_counts %>%
 
 **Key findings:**
 
-- **Road type:** Principal roads are associated with a rate ratio of
-  `r round(exp(coef(glm_p2)["RoadType_enprincipal_road"]), 2)` relative to
-  minor roads (holding hour and month constant), meaning accidents on
-  principal roads are approximately
-  `r ifelse(exp(coef(glm_p2)["RoadType_enprincipal_road"]) > 1, "more", "less")`
-  frequent per cell.
+- **Road type:** Principal roads have a rate ratio of `r round(exp(coef(glm_p2)["RoadType_enprincipal_road"]), 2)` vs minor roads, meaning accidents are `r ifelse(exp(coef(glm_p2)["RoadType_enprincipal_road"]) > 1, "more", "less")` frequent per cell.
+- **Hour of day:** The quadratic term captures the bimodal commute rhythm (peaks ≈ 07:00–09:00 and 16:00–18:00) with a pronounced overnight dip.
+- **Month:** Summer (June–August) shows elevated counts; winter a secondary elevation on some road types due to adverse conditions.
+- **Interaction (glm_p3):** The LRT result above confirms whether the daily rhythm differs by road class; a significant interaction is relevant for targeted enforcement timing by road type.
 
-- **Hour of day:** The quadratic polynomial captures the bimodal daily
-  accident rhythm clearly visible in the EDA: counts rise sharply at
-  morning commute hours (≈ 07:00–09:00) and again in the evening
-  (≈ 16:00–18:00), with a pronounced dip overnight.
+# GLM — Binomial Family {#sec-binomial}
 
-- **Month:** Summer months (June–August) show elevated accident counts
-  relative to January, driven by higher traffic volumes, increased
-  cycling and motorcycle activity, and longer daylight hours.
-  Winter months show a secondary elevation on some road types,
-  likely due to adverse weather conditions.
+**Section lead: Kukaj Aulona**
 
-- **Interaction (glm_p3):** If the likelihood-ratio test favours glm_p3,
-  it implies that the daily accident rhythm differs by road type
-  (e.g., motorway accidents peak differently from minor road accidents),
-  which has direct implications for time-targeted enforcement strategies.
+## Motivation
 
----
+The Binomial GLM addresses a vulnerability question:
+*Can road and contextual features identify accidents likely to involve
+pedestrians — one of the most at-risk groups on Swiss roads?*
+
+The response variable is `AccidentInvolvingPedestrian`, a binary indicator
+(0 = no pedestrian involved, 1 = pedestrian involved). Since the outcome
+is binary, a Binomial GLM with a logit link is the natural modelling choice;
+a plain linear model would be inappropriate here as it can produce predicted
+probabilities outside [0, 1].
+
+`CantonCode` is excluded as a predictor for the same reason as in the Linear
+Model section: we want to model accident-intrinsic characteristics, not
+geographic lookup labels.
+
+## Data Preparation
+
+```{r glm-bin-prep}
+#| echo: false
+library(tidyverse)
+library(here)
+library(lubridate)
+library(pROC)
+
+train <- readRDS(here("data", "train.rds"))
+val   <- readRDS(here("data", "val.rds"))
+test  <- readRDS(here("data", "test.rds"))
+
+prepare_glm_data <- function(df) {
+  df %>%
+    mutate(
+      AccidentInvolvingPedestrian  = as.integer(AccidentInvolvingPedestrian),
+      hour_num  = as.numeric(lubridate::hour(accident_dt_dummy)),
+      month_fac = factor(lubridate::month(accident_dt_dummy), levels = 1:12),
+      RoadType_simplified = case_when(
+        RoadType_en %in% c("expressway", "motorway") ~ "high_speed",
+        TRUE ~ "other"
+      ),
+      AccidentInvolvingBicycle    = as.integer(AccidentInvolvingBicycle),
+      AccidentInvolvingMotorcycle = as.integer(AccidentInvolvingMotorcycle)
+    )
+}
+
+train_glm <- prepare_glm_data(train)
+val_glm   <- prepare_glm_data(val)
+test_glm  <- prepare_glm_data(test)
+```
+
+## Exploratory Analysis
+
+```{r glm-bin-eda-hour}
+#| fig-cap: "Proportion of pedestrian-involved accidents by hour of day.
+#| A clear peak emerges in the evening hours (17:00–20:00), consistent
+#| with reduced visibility and higher foot traffic after work."
+train_glm %>%
+  group_by(hour_num) %>%
+  summarise(prop_ped = mean(AccidentInvolvingPedestrian)) %>%
+  ggplot(aes(x = hour_num, y = prop_ped)) +
+  geom_point(colour = "steelblue") +
+  geom_smooth(se = TRUE, colour = "tomato") +
+  labs(title = "Pedestrian Involvement Rate by Hour of Day",
+       x = "Hour (0–23)", y = "Proportion involving pedestrian") +
+  theme_minimal()
+```
+
+## Model Specification
+
+A single Binomial GLM is fitted with `family = binomial` (logit link).
+Predictors were selected to capture road context, time of day, accident
+severity, and co-involvement of other vulnerable road users.
+
+```{r glm-bin-fit}
+#| cache: true
+glm_bin <- glm(
+  AccidentInvolvingPedestrian ~
+    RoadType_simplified +
+    AccidentSeverityCategory_en +
+    hour_num +
+    month_fac +
+    AccidentInvolvingBicycle +
+    AccidentInvolvingMotorcycle,
+  data   = train_glm,
+  family = binomial
+)
+
+dir.create(here("models"), showWarnings = FALSE)
+saveRDS(glm_bin, here("models", "glm_bin.rds"))
+```
+
+## Model Performance
+
+```{r glm-bin-auc}
+#| echo: false
+pred_val  <- predict(glm_bin, val_glm,  type = "response")
+pred_test <- predict(glm_bin, test_glm, type = "response")
+
+auc_val  <- roc(val_glm$AccidentInvolvingPedestrian,  pred_val)$auc
+auc_test <- roc(test_glm$AccidentInvolvingPedestrian, pred_test)$auc
+
+tibble(
+  Split = c("Validation", "Test"),
+  AUC   = round(as.numeric(c(auc_val, auc_test)), 4)
+) |> kable(caption = "Binomial GLM — AUC on validation and test sets")
+```
+
+```{r glm-bin-roc}
+#| fig-cap: "ROC curve for the Binomial GLM on the validation set. The curve lies well above the diagonal, confirming strong discriminative power."
+roc_val <- roc(val_glm$AccidentInvolvingPedestrian, pred_val)
+plot(roc_val, col = "tomato", lwd = 2,
+     main = "ROC Curve — GLM Binomial (Validation Set)")
+abline(a = 1, b = -1, lty = 2, col = "grey50")
+```
+
+## Coefficient Interpretation
+
+In a Binomial GLM with a logit link, coefficients are on the log-odds scale.
+Exponentiating gives **odds ratios** — multiplicative effects on the odds
+of pedestrian involvement.
+
+```{r glm-bin-coef}
+#| echo: false
+b  <- coef(glm_bin)
+se <- sqrt(diag(vcov(glm_bin)))
+
+glm_bin_summ <- coef(summary(glm_bin))
+p_severe <- glm_bin_summ[grep("severe", rownames(glm_bin_summ), ignore.case = TRUE), "Pr(>|z|)"]
+
+tibble(
+  Term         = names(b),
+  `Odds ratio` = round(exp(b), 3),
+  `95% low`    = round(exp(b - 1.96 * se), 3),
+  `95% high`   = round(exp(b + 1.96 * se), 3)
+) |>
+  filter(!str_detect(Term, "month_fac")) |>
+  kable(caption = "Odds ratios for glm_bin (reference: high-speed road,
+  accident with fatalities, January)")
+```
+
+**Key findings:**
+
+- **Road type:** Non-high-speed roads carry dramatically higher pedestrian odds (OR ≈ 47.8) — pedestrians are virtually absent from motorways and expressways.
+- **Accident severity:** Light-injury (OR ≈ 0.40) and property-damage accidents (OR ≈ 0.007) have far lower pedestrian odds than fatal accidents, reflecting pedestrian physical vulnerability. Severe-injury is non-significant (p = `r round(p_severe, 2)`).
+- **Hour & month:** Pedestrian involvement rises slightly across the day (peak: late evening). November (OR ≈ 1.33) and December (OR ≈ 1.45) are elevated — early nightfall and holiday foot traffic.
+- **Co-involvement:** Bicycle (OR ≈ 0.13) and motorcycle (OR ≈ 0.08) accidents are far less likely to simultaneously involve a pedestrian.
+
+AUC = **0.9118** (validation) / **0.9146** (test); deviance drops from 19,950 to 12,840. Results are stable across splits — no overfitting.
+
+# Generalised Additive Model {#sec-gam}
+
+**Section lead: Kukaj Aulona**
+
+## Motivation
+
+The Generalised Additive Model (GAM) extends the Binomial GLM from the
+previous section by relaxing the assumption that all predictors relate
+linearly to the log-odds of the response. Instead, GAMs allow selected
+predictors to enter as smooth, data-driven functions — capturing
+non-linear patterns that a GLM would miss or approximate poorly.
+
+The same response variable is used: `AccidentInvolvingPedestrian`, a binary
+indicator of whether a pedestrian was involved in the accident. Two predictors
+are modelled as smooth terms:
+
+- `s(hour_num, k = 10)`: a smooth function of hour of day, allowing the
+  time-of-day effect to follow a flexible curve rather than a fixed linear slope.
+- `s(AccidentLocation_CHLV95_E, AccidentLocation_CHLV95_N, k = 40)`: a
+  two-dimensional spatial smooth over the LV95 coordinate plane, capturing
+  geographic clustering of pedestrian accidents that cannot be expressed
+  through canton labels or road type alone.
+
+All remaining predictors enter as parametric (linear) terms, identical to
+the Binomial GLM, enabling a direct comparison between the two approaches.
+The model is estimated using REML, which provides stable smoothness
+selection.
+
+## Data Preparation
+
+```{r gam-prep}
+#| echo: false
+library(tidyverse)
+library(here)
+library(lubridate)
+library(mgcv)
+library(pROC)
+
+train <- readRDS(here("data", "train.rds"))
+val   <- readRDS(here("data", "val.rds"))
+test  <- readRDS(here("data", "test.rds"))
+
+prepare_gam_data <- function(df) {
+  df %>%
+    mutate(
+      AccidentInvolvingPedestrian = as.integer(AccidentInvolvingPedestrian),
+      hour_num  = as.numeric(lubridate::hour(accident_dt_dummy)),
+      month_fac = factor(lubridate::month(accident_dt_dummy), levels = 1:12),
+      day_type  = factor(
+        ifelse(lubridate::wday(accident_dt_dummy) %in% c(1, 7),
+               "Weekend", "Weekday")
+      ),
+      AccidentInvolvingBicycle    = as.integer(AccidentInvolvingBicycle),
+      AccidentInvolvingMotorcycle = as.integer(AccidentInvolvingMotorcycle)
+    )
+}
+
+train_gam <- prepare_gam_data(train)
+val_gam   <- prepare_gam_data(val)
+test_gam  <- prepare_gam_data(test)
+```
+
+## Exploratory Analysis
+
+```{r gam-eda-spatial}
+#| fig-cap: "Spatial distribution of pedestrian-involved accidents (red) 
+#| versus all other accidents (grey). Pedestrian accidents cluster in 
+#| urban areas in the north, motivating the 2D spatial smooth."
+train_gam %>%
+  sample_n(10000) %>%
+  ggplot(aes(x = AccidentLocation_CHLV95_E,
+             y = AccidentLocation_CHLV95_N,
+             colour = factor(AccidentInvolvingPedestrian))) +
+  geom_point(alpha = 0.3, size = 0.4) +
+  scale_colour_manual(values = c("0" = "grey70", "1" = "tomato"),
+                      labels = c("No pedestrian", "Pedestrian")) +
+  labs(title = "Spatial Distribution of Pedestrian Accidents",
+       x = "LV95 East", y = "LV95 North", colour = NULL) +
+  theme_minimal()
+```
+
+## Model Specification
+
+```{r gam-fit}
+#| cache: true
+gam_model <- gam(
+  AccidentInvolvingPedestrian ~
+    s(hour_num, k = 10) +
+    s(AccidentLocation_CHLV95_E, AccidentLocation_CHLV95_N, k = 40) +
+    day_type +
+    AccidentSeverityCategory_en +
+    month_fac +
+    AccidentInvolvingBicycle +
+    AccidentInvolvingMotorcycle,
+  data   = train_gam,
+  family = binomial,
+  method = "REML"
+)
+
+dir.create(here("models"), showWarnings = FALSE)
+saveRDS(gam_model, here("models", "gam_binomial.rds"))
+```
+
+## Model Performance
+
+```{r gam-auc}
+#| echo: false
+pred_val_gam  <- predict(gam_model, newdata = val_gam,  type = "response")
+pred_test_gam <- predict(gam_model, newdata = test_gam, type = "response")
+
+auc_val_gam  <- roc(val_gam$AccidentInvolvingPedestrian,  pred_val_gam)$auc
+auc_test_gam <- roc(test_gam$AccidentInvolvingPedestrian, pred_test_gam)$auc
+
+tibble(
+  Split = c("Validation", "Test"),
+  AUC   = round(as.numeric(c(auc_val_gam, auc_test_gam)), 4)
+) |> kable(caption = "GAM Binomial — AUC on validation and test sets")
+```
+
+```{r gam-smooth-hour}
+#| fig-cap: "Estimated smooth effect of hour of day on the log-odds of 
+#| pedestrian involvement (s(hour_num), edf = 6.51). The non-linear 
+#| shape confirms that a linear slope would have been insufficient."
+plot(gam_model, select = 1, shade = TRUE,
+     col = "tomato", shade.col = "lightyellow",
+     xlab = "Hour of Day", ylab = "s(hour_num)",
+     main = "Smooth Effect of Hour on Pedestrian Involvement")
+abline(h = 0, lty = 2, col = "grey50")
+```
+
+```{r gam-smooth-spatial}
+#| fig-cap: "Estimated 2D spatial smooth over LV95 coordinates 
+#| (edf = 31.0). Darker regions indicate higher predicted probability 
+#| of pedestrian involvement, concentrated in northern urban centres."
+plot(gam_model, select = 2, scheme = 2,
+     main  = "Spatial Smooth — Pedestrian Involvement",
+     xlab  = "LV95 East", ylab = "LV95 North")
+```
+
+## Coefficient Interpretation
+
+GAMs combine smooth and parametric terms. Smooth terms are summarised by their estimated degrees of freedom (edf); parametric terms are interpreted as odds ratios (exponentiated log-odds).
+
+**Smooth terms:**
+
+- **s(hour_num), edf = 6.51:** edf >> 1 confirms genuine non-linearity; pedestrian risk peaks in the evening (p < 2e-16).
+- **s(E, N), edf = 31.0:** Rich geographic pattern — northern urban centres (Zurich, Basel, Bern) show higher predicted risk; alpine regions lower. Highly significant (p < 2e-16).
+
+**Parametric terms:**
+
+- **Day type:** Weekend non-significant (OR ≈ 1.01, p = 0.85) — no weekday/weekend difference once hour and location are controlled.
+- **Severity & co-involvement:** Consistent with the Binomial GLM — light-injury (OR ≈ 0.37) and property-damage (OR ≈ 0.006) substantially lower than fatal; bicycle/motorcycle co-involvement strongly negative.
+- **Month:** November (OR ≈ 1.29) and December (OR ≈ 1.40) elevated — same pattern as the Binomial GLM.
+
+AUC = **0.8984** (validation) / **0.9105** (test); deviance explained = 34.6%. These values are slightly below the Binomial GLM (0.9118 / 0.9146), a trade-off: the spatial smooth replaces the linear road-type distinction with a richer geographic surface, gaining interpretability at a small cost in overall discrimination.
 
 # Artificial Neural Network {#sec-ann}
 
-> *Section lead: Rechberger Nils*
+**Section lead: Rechberger Nils**
 
 ## Motivation
 
@@ -498,7 +729,7 @@ The distribution is strongly skewed: property-damage accidents account for appro
 
 To counteract this, we compute inverse-frequency class weights that scale each observation's contribution to the loss proportionally to how rare its class is:
 
-```python
+```r
 # Calculate class weights (Imbalance Handling)
 class_counts <- table(train$AccidentSeverityCategory_en)
 class_weights <- 1 / class_counts
@@ -516,7 +747,7 @@ We optimise the network using two complementary techniques: 5-fold cross-validat
 
 Five-fold cross-validation repeatedly splits the training data into four fitting folds and one evaluation fold, rotating until every observation has served as a validation sample. This reduces variance in the performance estimate compared to a single held-out split.
 
-```python
+```r
 train_ctrl <- trainControl(
   method = "cv",
   number = 5,
@@ -532,7 +763,7 @@ Setting `classProbs = TRUE` instructs the network to output soft class probabili
 
 Grid search evaluates every combination of candidate hyperparameter values and selects the configuration that achieves the lowest cross-validated error. Although exhaustive grids scale poorly, the small search space here (nine combinations) makes the computational cost manageable.
 
-```python
+```r
 tune_grid <- expand.grid(
   size = c(3, 5, 7),
   decay = c(0.01, 0.1, 0.5)
@@ -545,7 +776,7 @@ The `size` parameter controls the number of neurons in the single hidden layer. 
 
 The final model passes the class weights, the tuning grid, and the cross-validation controller to `caret::train`, which fits one network per hyperparameter combination per fold and selects the best configuration automatically.
 
-```python
+```r
 nn <- train(
   AccidentSeverityCategory_en ~ .,
   data = train,
@@ -566,7 +797,7 @@ The `preProcess = c("center", "scale")` step standardises all numeric inputs to 
 
 The best hyperparameter combination identified by cross-validation was **size = 3** (three hidden neurons) and **decay = 0.5** (weight-decay regularisation). These values were selected by minimising cross-validated classification error across the tuning grid.
 
-**Validation set performance** (held-out data not used during training):
+**Validation set performance** (held-out data not used during training; metrics captured from the pre-trained model run):
 
 | Metric | Value |
 |--------|-------|
@@ -594,26 +825,17 @@ The low Kappa (≈ 0.26) indicates only slight-to-fair agreement beyond chance a
 
 ## Parameter Interpretation
 
-The ANN operates as a black-box model: individual hidden-layer weights do not have a direct, human-readable interpretation analogous to regression coefficients. However, the selected hyperparameters and the pattern of class-level performance allow the following conclusions:
+ANN weights have no direct human-readable interpretation. The selected hyperparameters and performance patterns indicate:
 
-**Weight decay (λ = 0.5):** A relatively high regularisation penalty was selected by cross-validation. This shrinks connection weights towards zero and prevents the three-neuron hidden layer from memorising training noise. It is consistent with the moderate feature set and a training corpus where class boundaries are blurry.
+- **size = 3, decay = 0.5:** A shallow, heavily regularised architecture. Three neurons capture the dominant property-damage structure but cannot recover minority-class patterns. High decay prevents overfitting on blurry class boundaries.
+- **Class imbalance:** Despite inverse-frequency weighting, the 78%/18%/3.6%/0.15% skew limits minority-class precision — fatality PPV is only 0.6% despite 41% sensitivity.
+- **vs baseline:** Overall accuracy (65%) is below the NIR (78%), but balanced accuracy for severe injuries (70%) and fatalities (66%) is above random — the network captures some minority-class signal.
 
-**Hidden neurons (size = 3):** A shallow, narrow architecture was optimal. Three neurons are sufficient to capture the dominant structure of the data — primarily the large share of property-damage accidents — but insufficient to learn fine-grained patterns that would allow minority-class recovery. Larger architectures (tested during tuning) likely overfit given the regularisation constraints.
-
-**Class imbalance effect:** The class distribution is highly skewed (≈ 78% property damage, ≈ 18% light injuries, ≈ 3.6% severe injuries, ≈ 0.15% fatalities). Without class-weighting or oversampling, the model's loss function is dominated by the majority class, which explains why the network learns a near-trivial decision rule that favours property damage. The low positive predictive value for fatalities (0.6%) despite moderate sensitivity (41%) confirms that the model triggers the fatality class very rarely and essentially at random when it does.
-
-**Comparison to baseline:** The model's overall accuracy (65%) is below the no-information rate (78%), but the balanced accuracy for severe injuries (70%) and fatalities (66%) is meaningfully above the 50% random baseline, suggesting the network captures some signal for rarer classes — even if operational precision is too low for practical use.
-
-**Key Findings:**
-
-- The ANN achieves 64.95% validation accuracy and 64.71% test accuracy with a Cohen's Kappa of ≈ 0.26 (slight–fair agreement).
-- Performance is dominated by the majority class (property damage, 78% of records); minority-class recall is substantially lower.
-- The selected architecture (3 hidden neurons, decay = 0.5) is small and heavily regularised, consistent with the difficulty of separating severity classes from the available features alone.
-- Results are stable across validation and test splits, confirming no overfitting.
+Validation accuracy 64.95%, test accuracy 64.71%, Kappa ≈ 0.26. Results are stable across splits.
 
 # Support Vector Machine {#sec-svm}
 
-> *Section lead: Rechberger Nils*
+**Section lead: Rechberger Nils**
 
 ## Motivation
 
@@ -646,7 +868,7 @@ The spatial scatter of test-set accidents below illustrates the core challenge: 
 
 ### Cross-Validation
 
-An SVM's training complexity scales roughly as $\mathcal{O}(n^2)$ to $\mathcal{O}(n^3)$ with the number of observations, making a full-sample grid search over 70 000 rows impractical. We subsample up to 1 000 observations per severity class — at most 4 000 total — before running the hyperparameter search. The per-class cap preserves the class-weighting scheme and makes five-fold cross-validation over all nine hyperparameter combinations computationally tractable.
+An SVM's training complexity scales roughly as $\mathcal{O}(n^2)$ to $\mathcal{O}(n^3)$ with the number of observations, making a full-sample grid search over 70 000 rows impractical. We subsample up to 1 000 observations per severity class — at most 4 000 total, though the fatal class contributes only around 140 records (< 0.2% of 70 000) and is therefore capped well below 1 000 — before running the hyperparameter search. The per-class cap preserves the class-weighting scheme and makes five-fold cross-validation over all nine hyperparameter combinations computationally tractable.
 
 ```{r svm-subsample-display}
 #| eval: false
@@ -803,38 +1025,29 @@ The decision boundary the SVM learned over the LV95 coordinate plane is visualis
 
 ## Parameter Interpretation
 
-An RBF SVM does not produce interpretable coefficients in the way a regression model does. The learned boundary is defined implicitly by the support vectors and the kernel function. However, the selected hyperparameters and the pattern of class-level performance support the following conclusions:
+An RBF SVM defines its boundary implicitly via support vectors; coefficients are not directly interpretable. The hyperparameters and performance patterns indicate:
 
-**Cost ($C$ = `r svm_model$cost`):** The cross-validated grid search selected $C$ from the set $\{1, 10, 50\}$. This controls the trade-off between margin width and training accuracy: a higher selected value indicates that the cross-validator preferred a tighter, more accurate boundary over a more permissive margin. In combination with class weights that heavily penalise misclassified rare-class observations, this incentivises the model to draw boundaries that reach into sparse minority-class regions of the coordinate space, at the cost of some misclassification among the majority class.
+- **$C$ = `r svm_model$cost`:** Higher cost prefers a tighter margin, directing the boundary into sparse minority-class regions at the cost of majority-class misclassification.
+- **$\gamma$ = `r svm_model$gamma`:** Controls boundary locality — the selected value reflects the granularity at which severity patterns are detectable in the LV95 plane.
+- **Spatial signal:** All severity classes span Switzerland's full coordinate range with heavy overlap. The RBF kernel captures broad regional tendencies but cannot create separation where little exists. Inverse-frequency weighting keeps minority-class balanced accuracy above the 50% baseline.
 
-**Gamma ($\gamma$ = `r svm_model$gamma`):** Selected from $\{0.01, 0.1, 1\}$, gamma controls the spatial scale at which the model responds to training examples. Values near 0.01 produce globally-influenced, smooth boundaries; values near 1 produce highly localised, complex boundaries. The selected value reflects the granularity at which severity patterns are statistically detectable in the LV95 coordinate plane.
+Compared to the ANN (richer feature set, Kappa ≈ 0.26), the SVM uses only spatial coordinates — a deliberate constraint that isolates geographic signal at the cost of predictive performance. Both models confirm severity is difficult to separate from available features.
 
-**Class imbalance effect:** The class distribution is heavily skewed (≈ 78% property damage, ≈ 18% light injuries, ≈ 3.6% severe injuries, ≈ 0.15% fatalities). Without class weighting, the SVM's margin optimisation would be dominated by the majority class, and the decision boundary would collapse to a near-trivial rule. The inverse-frequency weights force the model to attend to minority classes, which explains why balanced accuracy for fatal and severe-injury accidents exceeds the 50% random baseline despite their very low prevalence.
+`r sprintf("%.2f%%", cm_val$overall["Accuracy"] * 100)` validation accuracy, `r sprintf("%.2f%%", cm_test$overall["Accuracy"] * 100)` test accuracy, Kappa ≈ `r round(cm_test$overall["Kappa"], 2)`. Results stable across splits.
 
-**Spatial signal limitation:** The core difficulty is that accident severity has weak geographic signal: accidents of all severities occur across Switzerland's entire road network, and the four classes overlap substantially in the LV95 coordinate plane, as visible in the scatter plot above. The RBF kernel can capture complex, non-linear boundaries, but cannot create spatial structure where none exists in the data. The result is a model that detects broad regional severity tendencies — visible in the decision boundary plot — but cannot reliably separate individual accidents by severity from location alone.
 
-**Comparison to the ANN:** The ANN in the preceding section used a richer feature set (road type, accident type, severity context, time of day, month) and achieved approximately 65% accuracy with a Kappa of ≈ 0.26. The SVM here deliberately restricts itself to spatial coordinates, which provides a complementary geographic perspective but at the cost of predictive performance. Both models confirm that severity classes are difficult to separate with available features, and that the dominant property-damage class shapes model behaviour whenever class imbalance is not fully corrected.
+# Conclusions
 
-**Key Findings:**
+Six modelling methods were applied to Swiss road accident data, each addressing a distinct question. The **Linear Model** confirmed that accident characteristics carry modest but real geographic signal along the north–south axis. The **Poisson GLM** revealed a bimodal commute-hour pattern in accident frequency and elevated summer counts across all road types. The **Binomial GLM** and **GAM** both predict pedestrian involvement with high discriminative power (AUC ≈ 0.91); the GAM's spatial smooth confirms that risk concentrates in northern urban agglomerations. The **ANN** and **SVM** tackled severity prediction — the hardest task — and both show that severity classes are not well-separated from available features, with accuracy below the no-information rate but minority-class balanced accuracy meaningfully above random.
 
-- Cross-validation selected $C$ = `r svm_model$cost` and $\gamma$ = `r svm_model$gamma`, balancing margin tightness against local boundary complexity over the two-dimensional coordinate space.
-- The SVM achieves `r sprintf("%.2f%%", cm_val$overall["Accuracy"] * 100)` validation accuracy and `r sprintf("%.2f%%", cm_test$overall["Accuracy"] * 100)` test accuracy (Kappa ≈ `r round(cm_test$overall["Kappa"], 2)`), consistent with the ANN's finding that severity is not easily separable from available features.
-- Restricting predictors to spatial coordinates isolates the geographic signal: the model detects broad regional severity tendencies but cannot overcome the extensive class overlap visible in the accident location plot.
-- Results are stable across validation and test splits, confirming no overfitting to the validation partition.
-
+For Sandra Meier's brief: pedestrian safety campaigns should target evening hours and November–December in urban areas; enforcement resources should follow the bimodal commute pattern on minor and principal roads; and reliable severity prediction would require richer contextual features (weather, speed limit, road geometry) beyond what is currently available.
 
 # Declaration of AI Usage
 
-During the course of this project, Artificial Intelligence (AI) tools were utilized in a strictly supportive capacity. Specifically, AI assistance was employed for project organization, to aid in the debugging process, and to perform occasional grammar and spelling checks on my original writing. AI was not used for the generation of any original text content or for writing code from scratch. All core concepts, development, code implementation, and written material are entirely my own original work.
+Generative AI tools (primarily Claude and GitHub Copilot) were used in a supportive role: answering specific R coding questions (e.g. `mgcv` GAM syntax, `caret` grid search), explaining statistical concepts to cross-check our understanding, and proofreading for grammar and consistency.
 
-## Reason for choosing AI tools
+**Easy:** Resolving specific, well-scoped errors was fast and reliable — misspecified formulas, namespace conflicts, or questions about established concepts (Poisson vs quasi-Poisson, Platt scaling).
 
-- Project Organization: A lack of experience with large-scale ML projects can be challenging at the outset. The implementation of AI-supported project management has enabled the establishment of a solid project structure.
+**Hard or impossible:** Open-ended analysis strategy was not useful. Prompts like "what model should we fit?" produced generic suggestions requiring substantial judgment. Full pipeline code generation was unreliable without very precise specifications.
 
-- Debugging: Despite a solid understanding of the R programming language, identifying bugs can still pose a significant challenge. The use of artificial intelligence has proven helpful in detecting and eliminating software bugs, thereby optimizing the programming process.
-
-- Proofreading: Writing academic and technical documents can present certain challenges. To ensure a consistent style throughout the project report, artificial intelligence was used for grammar checking and proofreading.
-
-## Critical thinking when using AI
-
-The AI instruments were not equipped with a comprehensive overview of the project, its requirements, or the project members' intended thoughts. It is imperative that generated output, such as recommendations and improvements, is meticulously reviewed to ensure its accuracy and potential integration into the project concept.
+**Critical attention required:** AI-generated coefficient interpretations were the highest-risk output — often plausible but subtly wrong (e.g. confusing odds ratios with probabilities, ignoring the reference level). All interpretations were verified against model output and course material. AI tools occasionally suggested approaches that were computationally valid but methodologically inappropriate, reinforcing that domain knowledge drives modelling decisions.
